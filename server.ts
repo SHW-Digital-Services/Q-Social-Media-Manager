@@ -371,7 +371,7 @@ WE ARE NOT:
 4. Diagnostic: The AI or brand NEVER diagnoses psychological conditions; it only observes, reflects, and supports.
 `;
 
-async function startServer() {
+async function createApp() {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
 
@@ -910,10 +910,26 @@ Guidelines to apply:
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Q Intelligence Communications Hub server running on http://0.0.0.0:${PORT}`);
-  });
+  return app;
 }
 
-startServer();
+let appPromise: Promise<express.Express> | null = null;
+
+function getApp() {
+  appPromise ||= createApp();
+  return appPromise;
+}
+
+export default async function handler(req: express.Request, res: express.Response) {
+  const app = await getApp();
+  return app(req, res);
+}
+
+if (!process.env.VERCEL) {
+  getApp().then(app => {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Q Intelligence Communications Hub server running on http://0.0.0.0:${PORT}`);
+    });
+  });
+}
 
