@@ -68,6 +68,11 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
     e.preventDefault();
     if (!connectingPlatform) return;
 
+    if (connectingPlatform.platform === 'linkedin') {
+      window.location.assign('/api/oauth/linkedin/start');
+      return;
+    }
+
     setIsAuthorizing(true);
 
     setTimeout(() => {

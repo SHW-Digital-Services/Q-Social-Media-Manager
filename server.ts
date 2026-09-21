@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
@@ -37,6 +38,12 @@ type PublishResult = {
   setupStep?: string;
 };
 
+type PkceRecord = {
+  codeVerifier: string;
+  createdAt: number;
+  platform: string;
+};
+
 const SUPPORTED_SOCIAL_PLATFORMS: SocialPlatform[] = [
   'instagram',
   'threads',
@@ -49,6 +56,8 @@ const SUPPORTED_SOCIAL_PLATFORMS: SocialPlatform[] = [
 ];
 
 const inMemoryOAuthTokens = new Map<string, any>();
+const pkceStore = new Map<string, PkceRecord>();
+const PKCE_TTL_MS = 10 * 60 * 1000;
 
 const OAUTH_SETUP: Record<string, {
   label: string;
@@ -116,6 +125,37 @@ function getConfiguredToken(platform: SocialPlatform): any {
   return inMemoryOAuthTokens.get(platform) || inMemoryOAuthTokens.get(provider);
 }
 
+function base64UrlEncode(buffer: Buffer): string {
+  return buffer
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function generateCodeVerifier(): string {
+  return base64UrlEncode(crypto.randomBytes(64));
+}
+
+function generateCodeChallenge(codeVerifier: string): string {
+  return base64UrlEncode(
+    crypto.createHash('sha256').update(codeVerifier).digest()
+  );
+}
+
+function generateOAuthState(): string {
+  return crypto.randomUUID();
+}
+
+function cleanupExpiredPkceRecords() {
+  const now = Date.now();
+  for (const [state, record] of pkceStore.entries()) {
+    if (now - record.createdAt > PKCE_TTL_MS) {
+      pkceStore.delete(state);
+    }
+  }
+}
+
 function requirePublishFields(payload: PublishRequest): string | null {
   if (!payload || typeof payload !== 'object') return 'A post payload is required.';
   if (!payload.content || typeof payload.content !== 'string' || payload.content.trim().length === 0) {
@@ -129,6 +169,61 @@ function requirePublishFields(payload: PublishRequest): string | null {
   return null;
 }
 
+async function publishToLinkedIn(payload: PublishRequest, token: any): Promise<PublishResult> {
+  const organizationId = process.env.LINKEDIN_ORGANIZATION_ID;
+  const author = organizationId
+    ? `urn:li:organization:${organizationId}`
+    : token.memberUrn;
+
+  if (!author) {
+    return {
+      platform: 'linkedin',
+      status: 'not_configured',
+      message: 'LinkedIn needs LINKEDIN_ORGANIZATION_ID before it can publish.',
+      setupStep: 'Set LINKEDIN_ORGANIZATION_ID to the LinkedIn organization page ID, then reconnect LinkedIn.',
+    };
+  }
+
+  const response = await fetch('https://api.linkedin.com/rest/posts', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token.access_token}`,
+      'Content-Type': 'application/json',
+      'LinkedIn-Version': process.env.LINKEDIN_VERSION || '202601',
+      'X-Restli-Protocol-Version': '2.0.0',
+    },
+    body: JSON.stringify({
+      author,
+      commentary: payload.content!.trim(),
+      visibility: 'PUBLIC',
+      distribution: {
+        feedDistribution: 'MAIN_FEED',
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
+      lifecycleState: 'PUBLISHED',
+      isReshareDisabledByAuthor: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const providerResponse = await response.json().catch(() => ({}));
+    return {
+      platform: 'linkedin',
+      status: 'failed',
+      message: 'LinkedIn rejected the post.',
+      setupStep: JSON.stringify(providerResponse),
+    };
+  }
+
+  return {
+    platform: 'linkedin',
+    status: 'published',
+    message: 'LinkedIn post published successfully.',
+    remoteId: response.headers.get('x-restli-id') || undefined,
+  };
+}
+
 async function publishToPlatform(platform: SocialPlatform, payload: PublishRequest): Promise<PublishResult> {
   const token = getConfiguredToken(platform);
 
@@ -139,6 +234,10 @@ async function publishToPlatform(platform: SocialPlatform, payload: PublishReque
       message: `${platform} has no stored OAuth token yet.`,
       setupStep: `Open /api/oauth/${platform}/start after creating the provider app and setting the required environment variables.`,
     };
+  }
+
+  if (platform === 'linkedin') {
+    return publishToLinkedIn(payload, token);
   }
 
   return {
@@ -237,10 +336,30 @@ async function startServer() {
     }
 
     if (provider === 'twitter') {
-      return res.status(501).json({
-        error: 'X OAuth needs a real PKCE verifier/challenge store before redirecting users.',
-        nextStep: 'Follow README-social-implementation.md to add a session-backed code_verifier, then enable this redirect.',
+      cleanupExpiredPkceRecords();
+
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = generateCodeChallenge(codeVerifier);
+      const state = generateOAuthState();
+
+      pkceStore.set(state, {
+        codeVerifier,
+        createdAt: Date.now(),
+        platform,
       });
+
+      const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: setup.scopes.join(' '),
+        state,
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256',
+      });
+
+      return res.redirect(`${setup.authUrl}?${params.toString()}`);
     }
 
     const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
@@ -288,6 +407,69 @@ async function startServer() {
         });
       }
 
+      if (provider === 'twitter') {
+        cleanupExpiredPkceRecords();
+
+        const returnedState = typeof req.query.state === 'string' ? req.query.state : '';
+        const stored = pkceStore.get(returnedState);
+
+        if (!returnedState || !stored) {
+          return res.status(400).json({
+            error: 'Invalid or expired X OAuth state. Please start the X connection again.',
+          });
+        }
+
+        if (stored.platform !== platform) {
+          pkceStore.delete(returnedState);
+          return res.status(400).json({
+            error: 'X OAuth state did not match the requested platform.',
+          });
+        }
+
+        pkceStore.delete(returnedState);
+
+        const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
+        const body = new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: redirectUri,
+          client_id: clientId,
+          code_verifier: stored.codeVerifier,
+        });
+        const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+        const tokenResponse = await fetch(setup.tokenUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Authorization: `Basic ${basicAuth}`,
+          },
+          body,
+        });
+        const tokenBody = await tokenResponse.json().catch(() => ({}));
+
+        if (!tokenResponse.ok) {
+          return res.status(tokenResponse.status).json({
+            error: 'X token exchange failed.',
+            providerResponse: tokenBody,
+          });
+        }
+
+        inMemoryOAuthTokens.set(platform, {
+          ...tokenBody,
+          provider,
+          platform,
+          connectedAt: new Date().toISOString(),
+        });
+
+        return res.json({
+          success: true,
+          platform,
+          provider,
+          warning: 'X token is stored in server memory for development only. Move it to encrypted production storage before launch.',
+        });
+      }
+
       const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
       const body = new URLSearchParams({
         grant_type: 'authorization_code',
@@ -317,6 +499,13 @@ async function startServer() {
         platform,
         connectedAt: new Date().toISOString(),
       });
+
+      if (platform === 'linkedin') {
+        const callbackUrl = new URL(getAppUrl(req));
+        callbackUrl.searchParams.set('oauth', 'success');
+        callbackUrl.searchParams.set('platform', platform);
+        return res.redirect(callbackUrl.toString());
+      }
 
       res.json({
         success: true,

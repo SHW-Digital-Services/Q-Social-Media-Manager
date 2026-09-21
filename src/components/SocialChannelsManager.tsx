@@ -63,6 +63,11 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
     e.preventDefault();
     if (!connectingModalConn) return;
 
+    if (connectingModalConn.platform === 'linkedin') {
+      window.location.assign('/api/oauth/linkedin/start');
+      return;
+    }
+
     setIsSubmittingOAuth(true);
 
     setTimeout(() => {

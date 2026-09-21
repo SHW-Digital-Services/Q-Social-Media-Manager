@@ -68,6 +68,37 @@ export default function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('oauth') !== 'success' || params.get('platform') !== 'linkedin') {
+      return;
+    }
+
+    fetch('/api/social/status')
+      .then(response => response.json())
+      .then(status => {
+        const linkedInStatus = status.platforms?.find((platform: { platform: string }) => platform.platform === 'linkedin');
+        if (linkedInStatus?.hasStoredToken) {
+          setSocialConnections(previous => previous.map(connection => connection.platform === 'linkedin'
+            ? {
+              ...connection,
+              isConnected: true,
+              connectedAt: new Date().toISOString(),
+              apiHealth: 'healthy',
+              webhookActive: true,
+            }
+            : connection));
+          showToast('LinkedIn connected with member and organization publishing permissions.');
+        } else {
+          showToast('LinkedIn authorization completed, but the server token could not be verified.', 'warning');
+        }
+      })
+      .catch(() => showToast('LinkedIn authorization completed, but connection status could not be loaded.', 'warning'))
+      .finally(() => {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      });
+  }, []);
+
   const publishBroadcast = async (postData: Partial<PostItem>, postId?: string) => {
     const res = await fetch('/api/publish/broadcast', {
       method: 'POST',

@@ -13,9 +13,9 @@ The app now has backend routes for social publishing:
 - `GET /api/oauth/:platform/callback` receives the platform login result.
 - `POST /api/publish/broadcast` is called when the app tries to publish.
 
-The frontend no longer marks a post as published just because the user clicked "Publish Now" or "Instant Broadcast". It now calls the backend first. If the social platforms are not configured yet, the app shows a warning and keeps the post unpublished.
+The frontend no longer marks a post as published just because the user clicked "Publish Now" or "Instant Broadcast". It now calls the backend first. If the social platforms are not configured yet, the app shows a warning and keeps the post unpublished. LinkedIn is wired through the real OAuth callback and Posts API: approved text posts are published as the configured organization when `LINKEDIN_ORGANIZATION_ID` is set.
 
-Important: the routes are a safe implementation scaffold. They validate the request, start OAuth where possible, and block publishing until each platform's final API adapter and secure token storage are completed.
+Important: LinkedIn publishing is implemented for text posts, but OAuth tokens are still held in server memory by this development scaffold. Move them to Supabase Vault or an encrypted `social_account_tokens` table before production deployment.
 
 ## The Plain-English Version
 
