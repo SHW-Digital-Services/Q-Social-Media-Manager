@@ -8,6 +8,147 @@ dotenv.config();
 
 const PORT = 3000;
 
+type SocialPlatform =
+  | 'instagram'
+  | 'linkedin'
+  | 'twitter'
+  | 'tiktok'
+  | 'threads'
+  | 'bluesky'
+  | 'facebook'
+  | 'website';
+
+type PublishRequest = {
+  postId?: string;
+  title?: string;
+  content?: string;
+  platforms?: SocialPlatform[];
+  mediaUrls?: string[];
+  tags?: string[];
+  scheduledFor?: string | null;
+  campaign?: string;
+};
+
+type PublishResult = {
+  platform: SocialPlatform;
+  status: 'published' | 'not_configured' | 'failed';
+  message: string;
+  remoteId?: string;
+  setupStep?: string;
+};
+
+const SUPPORTED_SOCIAL_PLATFORMS: SocialPlatform[] = [
+  'instagram',
+  'threads',
+  'facebook',
+  'linkedin',
+  'twitter',
+  'tiktok',
+  'bluesky',
+  'website',
+];
+
+const inMemoryOAuthTokens = new Map<string, any>();
+
+const OAUTH_SETUP: Record<string, {
+  label: string;
+  authUrl: string;
+  tokenUrl: string;
+  clientIdEnv: string;
+  clientSecretEnv: string;
+  scopes: string[];
+}> = {
+  meta: {
+    label: 'Meta (Instagram, Threads, and Facebook Pages)',
+    authUrl: 'https://www.facebook.com/v26.0/dialog/oauth',
+    tokenUrl: 'https://graph.facebook.com/v26.0/oauth/access_token',
+    clientIdEnv: 'META_APP_ID',
+    clientSecretEnv: 'META_APP_SECRET',
+    scopes: [
+      'pages_show_list',
+      'pages_read_engagement',
+      'pages_manage_posts',
+      'instagram_basic',
+      'instagram_content_publish',
+      'threads_basic',
+      'threads_content_publish',
+    ],
+  },
+  linkedin: {
+    label: 'LinkedIn',
+    authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
+    tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
+    clientIdEnv: 'LINKEDIN_CLIENT_ID',
+    clientSecretEnv: 'LINKEDIN_CLIENT_SECRET',
+    scopes: ['openid', 'profile', 'w_member_social', 'w_organization_social', 'r_organization_social'],
+  },
+  twitter: {
+    label: 'X (Twitter)',
+    authUrl: 'https://twitter.com/i/oauth2/authorize',
+    tokenUrl: 'https://api.twitter.com/2/oauth2/token',
+    clientIdEnv: 'X_CLIENT_ID',
+    clientSecretEnv: 'X_CLIENT_SECRET',
+    scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
+  },
+  tiktok: {
+    label: 'TikTok',
+    authUrl: 'https://www.tiktok.com/v2/auth/authorize/',
+    tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token/',
+    clientIdEnv: 'TIKTOK_CLIENT_KEY',
+    clientSecretEnv: 'TIKTOK_CLIENT_SECRET',
+    scopes: ['user.info.basic', 'video.upload', 'video.publish'],
+  },
+};
+
+function getAppUrl(req: express.Request): string {
+  return process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+}
+
+function getOAuthProviderForPlatform(platform: string): string {
+  if (platform === 'instagram' || platform === 'threads' || platform === 'facebook') {
+    return 'meta';
+  }
+  return platform;
+}
+
+function getConfiguredToken(platform: SocialPlatform): any {
+  const provider = getOAuthProviderForPlatform(platform);
+  return inMemoryOAuthTokens.get(platform) || inMemoryOAuthTokens.get(provider);
+}
+
+function requirePublishFields(payload: PublishRequest): string | null {
+  if (!payload || typeof payload !== 'object') return 'A post payload is required.';
+  if (!payload.content || typeof payload.content !== 'string' || payload.content.trim().length === 0) {
+    return 'Post content is required before publishing.';
+  }
+  if (!Array.isArray(payload.platforms) || payload.platforms.length === 0) {
+    return 'Choose at least one social platform before publishing.';
+  }
+  const unsupported = payload.platforms.find(platform => !SUPPORTED_SOCIAL_PLATFORMS.includes(platform));
+  if (unsupported) return `Unsupported platform: ${unsupported}.`;
+  return null;
+}
+
+async function publishToPlatform(platform: SocialPlatform, payload: PublishRequest): Promise<PublishResult> {
+  const token = getConfiguredToken(platform);
+
+  if (!token) {
+    return {
+      platform,
+      status: 'not_configured',
+      message: `${platform} has no stored OAuth token yet.`,
+      setupStep: `Open /api/oauth/${platform}/start after creating the provider app and setting the required environment variables.`,
+    };
+  }
+
+  return {
+    platform,
+    status: 'not_configured',
+    message: `${platform} token storage is present, but the final provider-specific publish adapter has not been enabled yet.`,
+    setupStep: 'Use README-social-implementation.md to complete the final API call for this provider.',
+  };
+}
+
 function getGeminiClient(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -55,6 +196,174 @@ async function startServer() {
       brand: 'Q Intelligence',
       timestamp: new Date().toISOString(),
     });
+  });
+
+  app.get('/api/social/status', (req, res) => {
+    res.json({
+      platforms: SUPPORTED_SOCIAL_PLATFORMS.map(platform => {
+        const provider = getOAuthProviderForPlatform(platform);
+        const setup = OAUTH_SETUP[provider];
+        return {
+          platform,
+          provider,
+          hasStoredToken: Boolean(getConfiguredToken(platform)),
+          hasClientId: setup ? Boolean(process.env[setup.clientIdEnv]) : false,
+          hasClientSecret: setup ? Boolean(process.env[setup.clientSecretEnv]) : false,
+          setupRoute: setup ? `/api/oauth/${platform}/start` : null,
+        };
+      }),
+    });
+  });
+
+  app.get('/api/oauth/:platform/start', (req, res) => {
+    const { platform } = req.params;
+    const provider = getOAuthProviderForPlatform(platform);
+    const setup = OAUTH_SETUP[provider];
+
+    if (!setup) {
+      return res.status(400).json({
+        error: `OAuth start is not available for ${platform}.`,
+        nextStep: 'Use the README instructions for this provider. Bluesky uses an app password instead of this OAuth flow.',
+      });
+    }
+
+    const clientId = process.env[setup.clientIdEnv];
+    if (!clientId) {
+      return res.status(501).json({
+        error: `${setup.label} client ID is missing.`,
+        environmentVariable: setup.clientIdEnv,
+        nextStep: `Add ${setup.clientIdEnv} to .env.local or the hosting provider environment settings, then restart the server.`,
+      });
+    }
+
+    if (provider === 'twitter') {
+      return res.status(501).json({
+        error: 'X OAuth needs a real PKCE verifier/challenge store before redirecting users.',
+        nextStep: 'Follow README-social-implementation.md to add a session-backed code_verifier, then enable this redirect.',
+      });
+    }
+
+    const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
+    const state = Buffer.from(JSON.stringify({
+      platform,
+      provider,
+      createdAt: Date.now(),
+    })).toString('base64url');
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: setup.scopes.join(' '),
+      state,
+    });
+
+    res.redirect(`${setup.authUrl}?${params.toString()}`);
+  });
+
+  app.get('/api/oauth/:platform/callback', async (req, res) => {
+    try {
+      const { platform } = req.params;
+      const provider = getOAuthProviderForPlatform(platform);
+      const setup = OAUTH_SETUP[provider];
+      const code = typeof req.query.code === 'string' ? req.query.code : '';
+
+      if (!setup) {
+        return res.status(400).json({ error: `OAuth callback is not available for ${platform}.` });
+      }
+
+      if (!code) {
+        return res.status(400).json({ error: 'The provider did not return an authorization code.' });
+      }
+
+      const clientId = process.env[setup.clientIdEnv];
+      const clientSecret = process.env[setup.clientSecretEnv];
+      if (!clientId || !clientSecret) {
+        return res.status(501).json({
+          error: `${setup.label} OAuth credentials are incomplete.`,
+          missing: [
+            !clientId ? setup.clientIdEnv : null,
+            !clientSecret ? setup.clientSecretEnv : null,
+          ].filter(Boolean),
+        });
+      }
+
+      const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
+      const body = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        client_secret: clientSecret,
+      });
+
+      const tokenResponse = await fetch(setup.tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+      const tokenBody = await tokenResponse.json().catch(() => ({}));
+
+      if (!tokenResponse.ok) {
+        return res.status(tokenResponse.status).json({
+          error: `${setup.label} token exchange failed.`,
+          providerResponse: tokenBody,
+        });
+      }
+
+      inMemoryOAuthTokens.set(platform, {
+        ...tokenBody,
+        provider,
+        platform,
+        connectedAt: new Date().toISOString(),
+      });
+
+      res.json({
+        success: true,
+        platform,
+        provider,
+        warning: 'Token is stored in server memory for this development scaffold. Move it to Supabase Vault or an encrypted social_account_tokens table before production.',
+      });
+    } catch (err: any) {
+      console.error('OAuth callback error:', err);
+      res.status(500).json({ error: err.message || 'OAuth callback failed.' });
+    }
+  });
+
+  app.post('/api/publish/broadcast', async (req, res) => {
+    try {
+      const payload = req.body as PublishRequest;
+      const validationError = requirePublishFields(payload);
+      if (validationError) {
+        return res.status(400).json({ error: validationError });
+      }
+
+      const results = await Promise.all(
+        payload.platforms!.map(platform => publishToPlatform(platform, payload))
+      );
+      const published = results.filter(result => result.status === 'published');
+      const failed = results.filter(result => result.status !== 'published');
+
+      if (failed.length > 0) {
+        return res.status(501).json({
+          success: false,
+          message: 'Publishing was not completed because one or more platforms still need setup.',
+          publishedCount: published.length,
+          failedCount: failed.length,
+          results,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Broadcast published through configured backend providers.',
+        publishedAt: new Date().toISOString(),
+        results,
+      });
+    } catch (err: any) {
+      console.error('Broadcast publish error:', err);
+      res.status(500).json({ error: err.message || 'Broadcast publish failed.' });
+    }
   });
 
   // Compliance Audit Endpoint

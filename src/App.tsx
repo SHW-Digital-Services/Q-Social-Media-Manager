@@ -68,6 +68,40 @@ export default function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  const publishBroadcast = async (postData: Partial<PostItem>, postId?: string) => {
+    const res = await fetch('/api/publish/broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        postId,
+        title: postData.title,
+        content: postData.content,
+        platforms: postData.platforms,
+        mediaUrls: postData.mediaUrls,
+        tags: postData.tags,
+        scheduledFor: postData.scheduledFor,
+        campaign: postData.campaign
+      })
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      const blockedPlatforms = Array.isArray(data.results)
+        ? data.results
+            .filter((result: any) => result.status !== 'published')
+            .map((result: any) => result.platform)
+            .join(', ')
+        : '';
+      throw new Error(
+        blockedPlatforms
+          ? `${data.message || 'Publishing setup is incomplete.'} Platforms needing setup: ${blockedPlatforms}.`
+          : data.message || data.error || 'Publishing failed.'
+      );
+    }
+
+    return data;
+  };
+
   // Helper to record a version snapshot
   const recordPostVersion = (
     post: PostItem, 
@@ -221,20 +255,31 @@ export default function App() {
     showToast('Feedback submitted to editorial team. Post moved to Changes Requested.', 'warning');
   };
 
-  const handlePublishNow = (postId: string) => {
-    setPosts(prev => prev.map(p => {
-      if (p.id === postId) {
-        const publishedPost: PostItem = {
-          ...p,
-          status: 'published',
-          publishedAt: new Date().toISOString()
-        };
-        return recordPostVersion(publishedPost, 'Broadcast published live across all selected platforms.', true);
-      }
-      return p;
-    }));
-    confetti({ particleCount: 90, spread: 70 });
-    showToast('Post broadcast live across all connected social channels!');
+  const handlePublishNow = async (postId: string) => {
+    const post = posts.find(p => p.id === postId);
+    if (!post) {
+      showToast('Could not find the post to publish.', 'warning');
+      return;
+    }
+
+    try {
+      await publishBroadcast(post, postId);
+      setPosts(prev => prev.map(p => {
+        if (p.id === postId) {
+          const publishedPost: PostItem = {
+            ...p,
+            status: 'published',
+            publishedAt: new Date().toISOString()
+          };
+          return recordPostVersion(publishedPost, 'Broadcast published through configured backend social providers.', true);
+        }
+        return p;
+      }));
+      confetti({ particleCount: 90, spread: 70 });
+      showToast('Post published through the backend social provider routes.');
+    } catch (err: any) {
+      showToast(err.message || 'Publishing is not configured yet.', 'warning');
+    }
   };
 
   // Composer Actions
@@ -397,8 +442,16 @@ export default function App() {
     showToast('Broadcast submitted to Automated Approval Queue!');
   };
 
-  const handlePublishDirect = (postData: Partial<PostItem>) => {
+  const handlePublishDirect = async (postData: Partial<PostItem>) => {
     const newPostId = `post-${Date.now()}`;
+
+    try {
+      await publishBroadcast(postData, newPostId);
+    } catch (err: any) {
+      showToast(err.message || 'Publishing is not configured yet.', 'warning');
+      return;
+    }
+
     const initialVersion: PostVersion = {
       versionId: `ver-${Date.now()}-1`,
       versionNumber: 'v1.0',
@@ -413,8 +466,8 @@ export default function App() {
       mediaUrls: postData.mediaUrls || [Q_LOGO_URL],
       status: 'published',
       complianceScore: 98,
-      changesSummary: 'Direct broadcast published live.',
-      changeSummary: 'Direct broadcast published live.',
+      changesSummary: 'Direct broadcast published through configured backend social providers.',
+      changeSummary: 'Direct broadcast published through configured backend social providers.',
       contentSnapshot: postData.content || '',
       titleSnapshot: postData.title || 'Live Broadcast',
       platformsSnapshot: postData.platforms || ['instagram'],
@@ -462,7 +515,8 @@ export default function App() {
     };
     setPosts([newPost, ...posts]);
     setActiveTab('queue');
-    showToast('Broadcast published live across channels!');
+    confetti({ particleCount: 90, spread: 70 });
+    showToast('Broadcast published through the backend social provider routes.');
   };
 
   // Template to Composer Bridge

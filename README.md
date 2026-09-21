@@ -18,3 +18,7 @@ View your app in AI Studio: https://ai.studio/apps/cf4a8dad-dc63-4aab-84bd-fd7a3
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Social Media Linking
+
+For the step-by-step social media setup guide, including Meta, LinkedIn, X, TikTok, Bluesky, Supabase token storage, and the backend publishing routes, see [README-social-implementation.md](README-social-implementation.md).

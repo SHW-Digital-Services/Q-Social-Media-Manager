@@ -634,7 +634,6 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 } });
                     onPublishDirect(buildPostPayload());
                   }}
                   disabled={isOverLimit}

@@ -27,7 +27,6 @@ import {
   Plus,
   Crown
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 
 interface ApprovalQueueProps {
   posts: PostItem[];
@@ -81,11 +80,6 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
   });
 
   const handleTriggerPublish = (postId: string) => {
-    confetti({
-      particleCount: 80,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
     onPublishNow(postId);
   };
 
