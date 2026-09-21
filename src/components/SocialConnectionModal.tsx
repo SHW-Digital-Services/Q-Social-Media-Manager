@@ -44,7 +44,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
   const [activeFilter, setActiveFilter] = useState<'all' | 'connected' | 'available'>('all');
   const [connectingPlatform, setConnectingPlatform] = useState<SocialAccountConnection | null>(null);
   const [customHandle, setCustomHandle] = useState('');
-  const [isAuthorizing, setIsAuthorizing] = useState(false);
+  const [authorizingConnectionId, setAuthorizingConnectionId] = useState<string | null>(null);
   
   // Ping test state
   const [testingPingId, setTestingPingId] = useState<string | null>(null);
@@ -61,17 +61,17 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
   });
 
   const handleStartConnect = async (conn: SocialAccountConnection) => {
-    setIsAuthorizing(true);
+    setAuthorizingConnectionId(conn.id);
 
     try {
       const result = await startOneClickSocialSignIn(conn.platform);
       if (!result.redirected) {
         onShowToast(result.message || `${conn.platformName} could not start sign-in.`, 'warning');
-        setIsAuthorizing(false);
+        setAuthorizingConnectionId(null);
       }
     } catch {
       onShowToast(`${conn.platformName} sign-in could not be started. Please try again.`, 'warning');
-      setIsAuthorizing(false);
+      setAuthorizingConnectionId(null);
     }
   };
 
@@ -84,7 +84,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
       return;
     }
 
-    setIsAuthorizing(true);
+    setAuthorizingConnectionId(connectingPlatform.id);
 
     setTimeout(() => {
       const now = new Date();
@@ -108,7 +108,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
       });
 
       onUpdateConnections(updated);
-      setIsAuthorizing(false);
+      setAuthorizingConnectionId(null);
       setConnectingPlatform(null);
       confetti({ particleCount: 70, spread: 60 });
       onShowToast(`Successfully connected ${connectingPlatform.platformName} (${customHandle || connectingPlatform.accountHandle}) via OAuth 2.0!`);
@@ -322,7 +322,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
                         className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs hover:shadow transition-all flex items-center gap-1.5 cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>{isAuthorizing ? 'Opening...' : 'Sign in'}</span>
+                        <span>{authorizingConnectionId === conn.id ? 'Opening...' : 'Sign in'}</span>
                       </button>
                     )}
                   </div>
@@ -434,10 +434,10 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={isAuthorizing}
+                  disabled={authorizingConnectionId === connectingPlatform.id}
                   className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  {isAuthorizing ? (
+                  {authorizingConnectionId === connectingPlatform.id ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                       <span>Authorizing Handshake...</span>

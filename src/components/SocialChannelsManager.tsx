@@ -44,7 +44,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
   const [pingData, setPingData] = useState<Record<string, { latency: number; timestamp: string }>>({});
   const [connectingModalConn, setConnectingModalConn] = useState<SocialAccountConnection | null>(null);
   const [customHandle, setCustomHandle] = useState('');
-  const [isSubmittingOAuth, setIsSubmittingOAuth] = useState(false);
+  const [submittingOAuthId, setSubmittingOAuthId] = useState<string | null>(null);
 
   const connectedList = connections.filter(c => c.isConnected);
   const connectedCount = connectedList.length;
@@ -56,17 +56,17 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
   });
 
   const handleStartConnect = async (conn: SocialAccountConnection) => {
-    setIsSubmittingOAuth(true);
+    setSubmittingOAuthId(conn.id);
 
     try {
       const result = await startOneClickSocialSignIn(conn.platform);
       if (!result.redirected) {
         onShowToast(result.message || `${conn.platformName} could not start sign-in.`, 'warning');
-        setIsSubmittingOAuth(false);
+        setSubmittingOAuthId(null);
       }
     } catch {
       onShowToast(`${conn.platformName} sign-in could not be started. Please try again.`, 'warning');
-      setIsSubmittingOAuth(false);
+      setSubmittingOAuthId(null);
     }
   };
 
@@ -79,7 +79,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
       return;
     }
 
-    setIsSubmittingOAuth(true);
+    setSubmittingOAuthId(connectingModalConn.id);
 
     setTimeout(() => {
       const now = new Date();
@@ -103,7 +103,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
       });
 
       onUpdateConnections(updated);
-      setIsSubmittingOAuth(false);
+      setSubmittingOAuthId(null);
       setConnectingModalConn(null);
       confetti({ particleCount: 70, spread: 60 });
       onShowToast(`Connected ${connectingModalConn.platformName} (${customHandle}) successfully! Ready for multi-channel broadcasts.`);
@@ -306,7 +306,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
                       className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>{isSubmittingOAuth ? 'Opening...' : 'Sign in'}</span>
+                      <span>{submittingOAuthId === conn.id ? 'Opening...' : 'Sign in'}</span>
                     </button>
                   )}
                 </div>
@@ -416,10 +416,10 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmittingOAuth}
+                  disabled={submittingOAuthId === connectingModalConn.id}
                   className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  {isSubmittingOAuth ? (
+                  {submittingOAuthId === connectingModalConn.id ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                       <span>Connecting...</span>

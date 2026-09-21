@@ -64,12 +64,12 @@ const OAUTH_SETUP: Record<string, {
   label: string;
   authUrl: string;
   tokenUrl: string;
-  clientIdEnv: string;
-  clientSecretEnv: string;
+  clientIdEnv: string | string[];
+  clientSecretEnv: string | string[];
   scopes: string[];
 }> = {
-  meta: {
-    label: 'Meta (Instagram, Threads, and Facebook Pages)',
+  facebook: {
+    label: 'Facebook Pages',
     authUrl: 'https://www.facebook.com/v26.0/dialog/oauth',
     tokenUrl: 'https://graph.facebook.com/v26.0/oauth/access_token',
     clientIdEnv: 'META_APP_ID',
@@ -78,8 +78,27 @@ const OAUTH_SETUP: Record<string, {
       'pages_show_list',
       'pages_read_engagement',
       'pages_manage_posts',
-      'instagram_basic',
-      'instagram_content_publish',
+    ],
+  },
+  instagram: {
+    label: 'Instagram',
+    authUrl: 'https://www.instagram.com/oauth/authorize',
+    tokenUrl: 'https://graph.instagram.com/oauth/access_token',
+    clientIdEnv: ['INSTAGRAM_APP_ID', 'META_APP_ID'],
+    clientSecretEnv: ['INSTAGRAM_APP_SECRET', 'META_APP_SECRET'],
+    scopes: [
+      'instagram_business_basic',
+      'instagram_business_content_publish',
+      'instagram_business_manage_comments',
+    ],
+  },
+  threads: {
+    label: 'Threads',
+    authUrl: 'https://threads.net/oauth/authorize',
+    tokenUrl: 'https://graph.threads.net/oauth/access_token',
+    clientIdEnv: ['THREADS_APP_ID', 'META_APP_ID'],
+    clientSecretEnv: ['THREADS_APP_SECRET', 'META_APP_SECRET'],
+    scopes: [
       'threads_basic',
       'threads_content_publish',
     ],
@@ -115,10 +134,19 @@ function getAppUrl(req: express.Request): string {
 }
 
 function getOAuthProviderForPlatform(platform: string): string {
-  if (platform === 'instagram' || platform === 'threads' || platform === 'facebook') {
-    return 'meta';
-  }
   return platform;
+}
+
+function envNames(names: string | string[]): string[] {
+  return Array.isArray(names) ? names : [names];
+}
+
+function getFirstEnvValue(names: string | string[]): string | undefined {
+  return envNames(names).map(name => process.env[name]).find(Boolean);
+}
+
+function formatEnvNames(names: string | string[]): string {
+  return envNames(names).join(' or ');
 }
 
 function getConfiguredToken(platform: SocialPlatform): any {
@@ -177,16 +205,16 @@ function buildOAuthStartResult(platform: string, req: express.Request): OAuthSta
     };
   }
 
-  const clientId = process.env[setup.clientIdEnv];
-  const clientSecret = process.env[setup.clientSecretEnv];
+  const clientId = getFirstEnvValue(setup.clientIdEnv);
+  const clientSecret = getFirstEnvValue(setup.clientSecretEnv);
   if (!clientId || !clientSecret) {
     return {
       status: 501,
       body: {
         error: `${setup.label} one-click sign-in is not enabled on the server yet.`,
         missing: [
-          !clientId ? setup.clientIdEnv : null,
-          !clientSecret ? setup.clientSecretEnv : null,
+          !clientId ? formatEnvNames(setup.clientIdEnv) : null,
+          !clientSecret ? formatEnvNames(setup.clientSecretEnv) : null,
         ].filter(Boolean),
         nextStep: 'Ask the app owner to add the provider app configuration once in the server environment, then restart the server.',
       },
@@ -394,8 +422,8 @@ async function createApp() {
           platform,
           provider,
           hasStoredToken: Boolean(getConfiguredToken(platform)),
-          hasClientId: setup ? Boolean(process.env[setup.clientIdEnv]) : false,
-          hasClientSecret: setup ? Boolean(process.env[setup.clientSecretEnv]) : false,
+          hasClientId: setup ? Boolean(getFirstEnvValue(setup.clientIdEnv)) : false,
+          hasClientSecret: setup ? Boolean(getFirstEnvValue(setup.clientSecretEnv)) : false,
           setupRoute: setup ? `/api/oauth/${platform}/start` : null,
         };
       }),
@@ -435,14 +463,14 @@ async function createApp() {
         return res.status(400).json({ error: 'The provider did not return an authorization code.' });
       }
 
-      const clientId = process.env[setup.clientIdEnv];
-      const clientSecret = process.env[setup.clientSecretEnv];
+      const clientId = getFirstEnvValue(setup.clientIdEnv);
+      const clientSecret = getFirstEnvValue(setup.clientSecretEnv);
       if (!clientId || !clientSecret) {
         return res.status(501).json({
           error: `${setup.label} OAuth credentials are incomplete.`,
           missing: [
-            !clientId ? setup.clientIdEnv : null,
-            !clientSecret ? setup.clientSecretEnv : null,
+            !clientId ? formatEnvNames(setup.clientIdEnv) : null,
+            !clientSecret ? formatEnvNames(setup.clientSecretEnv) : null,
           ].filter(Boolean),
         });
       }
