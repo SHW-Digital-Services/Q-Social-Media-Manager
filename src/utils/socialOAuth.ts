@@ -1,16 +1,13 @@
 import { SocialPlatform } from '../types';
 
-type SocialStatusPlatform = {
-  platform: SocialPlatform;
-  hasStoredToken: boolean;
-  hasClientId: boolean;
-  hasClientSecret: boolean;
-  setupRoute: string | null;
-};
-
-type SocialStatusResponse = {
-  platforms?: SocialStatusPlatform[];
-};
+const OAUTH_SUPPORTED_PLATFORMS = new Set<SocialPlatform>([
+  'instagram',
+  'threads',
+  'facebook',
+  'linkedin',
+  'twitter',
+  'tiktok',
+]);
 
 export function getSocialPlatformLabel(platform: string): string {
   const labels: Record<string, string> = {
@@ -35,32 +32,13 @@ export async function startOneClickSocialSignIn(platform: SocialPlatform): Promi
     };
   }
 
-  const response = await fetch('/api/social/status');
-  const status = await response.json().catch(() => ({})) as SocialStatusResponse;
-  const platformStatus = status.platforms?.find(item => item.platform === platform);
-
-  if (!response.ok || !platformStatus) {
-    return {
-      redirected: false,
-      message: 'Connection status could not be loaded. Please try again in a moment.',
-    };
-  }
-
-  if (!platformStatus.setupRoute) {
+  if (!OAUTH_SUPPORTED_PLATFORMS.has(platform)) {
     return {
       redirected: false,
       message: `${getSocialPlatformLabel(platform)} does not support one-click OAuth in this app yet.`,
     };
   }
 
-  if (!platformStatus.hasClientId || !platformStatus.hasClientSecret) {
-    return {
-      redirected: false,
-      message: 'One-click sign-in is not enabled for this channel yet. Ask the app owner to add the provider app configuration once on the server.',
-    };
-  }
-
-  window.location.assign(platformStatus.setupRoute);
+  window.location.assign(`/api/oauth/${platform}/start`);
   return { redirected: true };
 }
-
