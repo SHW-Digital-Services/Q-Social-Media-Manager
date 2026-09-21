@@ -1,0 +1,6 @@
+{
+  "name": "Q Intelligence Social Media & Communications Hub",
+  "description": "Content scheduling, automated approval queue, multi-platform publishing, real-time collaboration, and integrated brand compliance analytics for Q Intelligence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
