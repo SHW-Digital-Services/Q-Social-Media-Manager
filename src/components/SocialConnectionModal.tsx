@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SocialAccountConnection, SocialPlatform } from '../types';
 import { SocialPlatformBrandIcon } from './SocialPlatformBrandIcon';
+import { startOneClickSocialSignIn } from '../utils/socialOAuth';
 import { 
   Share2, 
   CheckCircle2, 
@@ -59,9 +60,19 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
     return true;
   });
 
-  const handleStartConnect = (conn: SocialAccountConnection) => {
-    setConnectingPlatform(conn);
-    setCustomHandle(conn.accountHandle || `@q_${conn.platform}`);
+  const handleStartConnect = async (conn: SocialAccountConnection) => {
+    setIsAuthorizing(true);
+
+    try {
+      const result = await startOneClickSocialSignIn(conn.platform);
+      if (!result.redirected) {
+        onShowToast(result.message || `${conn.platformName} could not start sign-in.`, 'warning');
+        setIsAuthorizing(false);
+      }
+    } catch {
+      onShowToast(`${conn.platformName} sign-in could not be started. Please try again.`, 'warning');
+      setIsAuthorizing(false);
+    }
   };
 
   const handleConfirmOAuth = (e: React.FormEvent) => {
@@ -161,7 +172,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
-                Manage OAuth 2.0 tokens, API rate limits, and multi-channel publishing access for Q Intelligence.
+                Connect social channels with one-click sign-in and manage multi-channel publishing access for Q Intelligence.
               </p>
             </div>
           </div>
@@ -211,7 +222,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
 
           <div className="flex items-center gap-2 text-[11px] font-mono text-slate-500">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Supabase Token Encryption: AES-256</span>
+            <span>Server-managed OAuth connections</span>
           </div>
         </div>
 
@@ -311,7 +322,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
                         className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs hover:shadow transition-all flex items-center gap-1.5 cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>Connect Account</span>
+                        <span>{isAuthorizing ? 'Opening...' : 'Sign in'}</span>
                       </button>
                     )}
                   </div>
@@ -336,7 +347,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
         <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
           <div className="flex items-center gap-1.5">
             <Lock className="w-3.5 h-3.5 text-purple-600" />
-            <span>OAuth 2.0 PKCE authentication compliant with Meta, X & LinkedIn policies.</span>
+            <span>One-click sign-in uses the secure provider authorization routes configured on the server.</span>
           </div>
           <button
             onClick={onClose}
@@ -448,3 +459,4 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
     </div>
   );
 };
+

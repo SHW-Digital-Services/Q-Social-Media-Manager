@@ -20,6 +20,7 @@ import { StaffAuthModal } from './components/StaffAuthModal';
 import { StaffQuickGuideModal } from './components/StaffQuickGuideModal';
 import { QLogo } from './components/QLogo';
 import { AUTHORIZED_STAFF_ACCOUNTS, StaffUser } from './lib/supabase';
+import { getSocialPlatformLabel } from './utils/socialOAuth';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -70,16 +71,18 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('oauth') !== 'success' || params.get('platform') !== 'linkedin') {
+    if (params.get('oauth') !== 'success') {
       return;
     }
+
+    const connectedPlatform = params.get('platform');
 
     fetch('/api/social/status')
       .then(response => response.json())
       .then(status => {
-        const linkedInStatus = status.platforms?.find((platform: { platform: string }) => platform.platform === 'linkedin');
-        if (linkedInStatus?.hasStoredToken) {
-          setSocialConnections(previous => previous.map(connection => connection.platform === 'linkedin'
+        const activeStatuses = status.platforms?.filter((platform: { hasStoredToken: boolean }) => platform.hasStoredToken) || [];
+        if (activeStatuses.length > 0) {
+          setSocialConnections(previous => previous.map(connection => activeStatuses.some((platform: { platform: string }) => platform.platform === connection.platform)
             ? {
               ...connection,
               isConnected: true,
@@ -88,12 +91,13 @@ export default function App() {
               webhookActive: true,
             }
             : connection));
-          showToast('LinkedIn connected with member and organization publishing permissions.');
+          const connectedName = connectedPlatform ? getSocialPlatformLabel(connectedPlatform) : 'Social channel';
+          showToast(`${connectedName} connected with one-click sign-in.`);
         } else {
-          showToast('LinkedIn authorization completed, but the server token could not be verified.', 'warning');
+          showToast('Authorization completed, but the server token could not be verified.', 'warning');
         }
       })
-      .catch(() => showToast('LinkedIn authorization completed, but connection status could not be loaded.', 'warning'))
+      .catch(() => showToast('Authorization completed, but connection status could not be loaded.', 'warning'))
       .finally(() => {
         window.history.replaceState({}, document.title, window.location.pathname);
       });
@@ -990,3 +994,4 @@ export default function App() {
     </div>
   );
 }
+

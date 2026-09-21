@@ -12,8 +12,7 @@ export const INITIAL_SOCIAL_CONNECTIONS: SocialAccountConnection[] = [
     isConnected: false,
     scopes: ['instagram_basic', 'instagram_content_publish', 'instagram_manage_comments', 'pages_show_list'],
     webhookActive: false,
-    apiHealth: 'disconnected',
-    clientId: 'meta_app_982471928371'
+    apiHealth: 'disconnected'
   },
   {
     id: 'conn-threads',
@@ -26,8 +25,7 @@ export const INITIAL_SOCIAL_CONNECTIONS: SocialAccountConnection[] = [
     isConnected: false,
     scopes: ['threads_basic', 'threads_content_publish', 'threads_read_replies'],
     webhookActive: false,
-    apiHealth: 'disconnected',
-    clientId: 'threads_api_8374918237'
+    apiHealth: 'disconnected'
   },
   {
     id: 'conn-twitter',
@@ -40,8 +38,7 @@ export const INITIAL_SOCIAL_CONNECTIONS: SocialAccountConnection[] = [
     isConnected: false,
     scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
     webhookActive: false,
-    apiHealth: 'disconnected',
-    clientId: 'x_oauth2_client_4829104'
+    apiHealth: 'disconnected'
   },
   {
     id: 'conn-linkedin',
@@ -54,8 +51,7 @@ export const INITIAL_SOCIAL_CONNECTIONS: SocialAccountConnection[] = [
     isConnected: false,
     scopes: ['w_member_social', 'r_organization_social', 'w_organization_social'],
     webhookActive: false,
-    apiHealth: 'disconnected',
-    clientId: 'linkedin_app_90184712'
+    apiHealth: 'disconnected'
   },
   {
     id: 'conn-tiktok',
@@ -68,8 +64,7 @@ export const INITIAL_SOCIAL_CONNECTIONS: SocialAccountConnection[] = [
     isConnected: false,
     scopes: ['video.upload', 'video.publish', 'user.info.basic'],
     webhookActive: false,
-    apiHealth: 'disconnected',
-    clientId: 'tiktok_open_api_772819'
+    apiHealth: 'disconnected'
   },
   {
     id: 'conn-bluesky',
@@ -82,8 +77,7 @@ export const INITIAL_SOCIAL_CONNECTIONS: SocialAccountConnection[] = [
     isConnected: false,
     scopes: ['atproto', 'com.atproto.repo.createRecord'],
     webhookActive: false,
-    apiHealth: 'disconnected',
-    clientId: 'bsky_did_plc_48291048'
+    apiHealth: 'disconnected'
   },
   {
     id: 'conn-facebook',
@@ -96,8 +90,7 @@ export const INITIAL_SOCIAL_CONNECTIONS: SocialAccountConnection[] = [
     isConnected: false,
     scopes: ['pages_manage_posts', 'pages_read_engagement', 'pages_show_list'],
     webhookActive: false,
-    apiHealth: 'disconnected',
-    clientId: 'fb_page_id_88192048'
+    apiHealth: 'disconnected'
   },
   {
     id: 'conn-website',
@@ -111,8 +104,8 @@ export const INITIAL_SOCIAL_CONNECTIONS: SocialAccountConnection[] = [
     scopes: ['website_cms_publish', 'owner_exclusive_dispatch', 'cdn_cache_purge'],
     webhookActive: false,
     apiHealth: 'disconnected',
-    clientId: 'qai_web_cms_direct',
     requiresOwner: true,
     notes: 'Direct publishing to the official Q Intelligence web portal. Strictly requires Owner (Scott Harvey-Whittle) authorization.'
   }
 ];
+

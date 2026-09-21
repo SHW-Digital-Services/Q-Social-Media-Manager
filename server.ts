@@ -327,11 +327,15 @@ async function startServer() {
     }
 
     const clientId = process.env[setup.clientIdEnv];
-    if (!clientId) {
+    const clientSecret = process.env[setup.clientSecretEnv];
+    if (!clientId || !clientSecret) {
       return res.status(501).json({
-        error: `${setup.label} client ID is missing.`,
-        environmentVariable: setup.clientIdEnv,
-        nextStep: `Add ${setup.clientIdEnv} to .env.local or the hosting provider environment settings, then restart the server.`,
+        error: `${setup.label} one-click sign-in is not enabled on the server yet.`,
+        missing: [
+          !clientId ? setup.clientIdEnv : null,
+          !clientSecret ? setup.clientSecretEnv : null,
+        ].filter(Boolean),
+        nextStep: 'Ask the app owner to add the provider app configuration once in the server environment, then restart the server.',
       });
     }
 
@@ -462,12 +466,10 @@ async function startServer() {
           connectedAt: new Date().toISOString(),
         });
 
-        return res.json({
-          success: true,
-          platform,
-          provider,
-          warning: 'X token is stored in server memory for development only. Move it to encrypted production storage before launch.',
-        });
+        const callbackUrl = new URL(getAppUrl(req));
+        callbackUrl.searchParams.set('oauth', 'success');
+        callbackUrl.searchParams.set('platform', platform);
+        return res.redirect(callbackUrl.toString());
       }
 
       const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
@@ -500,19 +502,10 @@ async function startServer() {
         connectedAt: new Date().toISOString(),
       });
 
-      if (platform === 'linkedin') {
-        const callbackUrl = new URL(getAppUrl(req));
-        callbackUrl.searchParams.set('oauth', 'success');
-        callbackUrl.searchParams.set('platform', platform);
-        return res.redirect(callbackUrl.toString());
-      }
-
-      res.json({
-        success: true,
-        platform,
-        provider,
-        warning: 'Token is stored in server memory for this development scaffold. Move it to Supabase Vault or an encrypted social_account_tokens table before production.',
-      });
+      const callbackUrl = new URL(getAppUrl(req));
+      callbackUrl.searchParams.set('oauth', 'success');
+      callbackUrl.searchParams.set('platform', platform);
+      return res.redirect(callbackUrl.toString());
     } catch (err: any) {
       console.error('OAuth callback error:', err);
       res.status(500).json({ error: err.message || 'OAuth callback failed.' });
@@ -887,3 +880,4 @@ Guidelines to apply:
 }
 
 startServer();
+

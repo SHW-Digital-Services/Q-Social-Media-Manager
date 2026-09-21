@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SocialAccountConnection, SocialPlatform } from '../types';
 import { SocialPlatformBrandIcon } from './SocialPlatformBrandIcon';
+import { startOneClickSocialSignIn } from '../utils/socialOAuth';
 import { 
   Share2, 
   CheckCircle2, 
@@ -54,9 +55,19 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
     return true;
   });
 
-  const handleStartConnect = (conn: SocialAccountConnection) => {
-    setConnectingModalConn(conn);
-    setCustomHandle(conn.accountHandle || `@q_${conn.platform}`);
+  const handleStartConnect = async (conn: SocialAccountConnection) => {
+    setIsSubmittingOAuth(true);
+
+    try {
+      const result = await startOneClickSocialSignIn(conn.platform);
+      if (!result.redirected) {
+        onShowToast(result.message || `${conn.platformName} could not start sign-in.`, 'warning');
+        setIsSubmittingOAuth(false);
+      }
+    } catch {
+      onShowToast(`${conn.platformName} sign-in could not be started. Please try again.`, 'warning');
+      setIsSubmittingOAuth(false);
+    }
   };
 
   const handleConfirmOAuth = (e: React.FormEvent) => {
@@ -155,7 +166,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
           </h2>
 
           <p className="text-sm text-slate-300 leading-relaxed">
-            Link and authorize external social media networks using OAuth 2.0 PKCE. Broadcast approved posts simultaneously to Instagram, Threads, X, LinkedIn, TikTok, and Bluesky with one click.
+            Sign in to supported social networks in one click. Broadcast approved posts simultaneously to Instagram, Threads, X, LinkedIn, TikTok, and Bluesky once their server-side provider setup is enabled.
           </p>
 
           <div className="pt-2 flex flex-wrap items-center gap-3">
@@ -169,7 +180,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
             </button>
             <div className="text-[11px] font-mono text-purple-200/80 flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Supabase Auth Encrypted Vault</span>
+              <span>Server-managed OAuth</span>
             </div>
           </div>
         </div>
@@ -215,7 +226,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
 
         <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
           <Globe className="w-3.5 h-3.5 text-purple-600" />
-          <span>Webhook Dispatcher: Active</span>
+          <span>One-click connections</span>
         </div>
       </div>
 
@@ -295,7 +306,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
                       className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>Connect</span>
+                      <span>{isSubmittingOAuth ? 'Opening...' : 'Sign in'}</span>
                     </button>
                   )}
                 </div>
@@ -430,3 +441,4 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
     </div>
   );
 };
+
