@@ -5,6 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 
+dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 const PORT = 3000;
@@ -154,6 +155,93 @@ function cleanupExpiredPkceRecords() {
       pkceStore.delete(state);
     }
   }
+}
+
+type OAuthStartResult = {
+  status: number;
+  authUrl?: string;
+  body?: Record<string, unknown>;
+};
+
+function buildOAuthStartResult(platform: string, req: express.Request): OAuthStartResult {
+  const provider = getOAuthProviderForPlatform(platform);
+  const setup = OAUTH_SETUP[provider];
+
+  if (!setup) {
+    return {
+      status: 400,
+      body: {
+        error: `OAuth start is not available for ${platform}.`,
+        nextStep: 'Use the README instructions for this provider. Bluesky uses an app password instead of this OAuth flow.',
+      },
+    };
+  }
+
+  const clientId = process.env[setup.clientIdEnv];
+  const clientSecret = process.env[setup.clientSecretEnv];
+  if (!clientId || !clientSecret) {
+    return {
+      status: 501,
+      body: {
+        error: `${setup.label} one-click sign-in is not enabled on the server yet.`,
+        missing: [
+          !clientId ? setup.clientIdEnv : null,
+          !clientSecret ? setup.clientSecretEnv : null,
+        ].filter(Boolean),
+        nextStep: 'Ask the app owner to add the provider app configuration once in the server environment, then restart the server.',
+      },
+    };
+  }
+
+  if (provider === 'twitter') {
+    cleanupExpiredPkceRecords();
+
+    const codeVerifier = generateCodeVerifier();
+    const codeChallenge = generateCodeChallenge(codeVerifier);
+    const state = generateOAuthState();
+
+    pkceStore.set(state, {
+      codeVerifier,
+      createdAt: Date.now(),
+      platform,
+    });
+
+    const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: setup.scopes.join(' '),
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    });
+
+    return {
+      status: 200,
+      authUrl: `${setup.authUrl}?${params.toString()}`,
+    };
+  }
+
+  const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
+  const state = Buffer.from(JSON.stringify({
+    platform,
+    provider,
+    createdAt: Date.now(),
+  })).toString('base64url');
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: setup.scopes.join(' '),
+    state,
+  });
+
+  return {
+    status: 200,
+    authUrl: `${setup.authUrl}?${params.toString()}`,
+  };
 }
 
 function requirePublishFields(payload: PublishRequest): string | null {
@@ -314,74 +402,22 @@ async function startServer() {
     });
   });
 
+  app.get('/api/oauth/:platform/start-url', (req, res) => {
+    const result = buildOAuthStartResult(req.params.platform, req);
+    if (!result.authUrl) {
+      return res.status(result.status).json(result.body || { error: 'OAuth sign-in could not be started.' });
+    }
+
+    res.json({ authUrl: result.authUrl });
+  });
+
   app.get('/api/oauth/:platform/start', (req, res) => {
-    const { platform } = req.params;
-    const provider = getOAuthProviderForPlatform(platform);
-    const setup = OAUTH_SETUP[provider];
-
-    if (!setup) {
-      return res.status(400).json({
-        error: `OAuth start is not available for ${platform}.`,
-        nextStep: 'Use the README instructions for this provider. Bluesky uses an app password instead of this OAuth flow.',
-      });
+    const result = buildOAuthStartResult(req.params.platform, req);
+    if (!result.authUrl) {
+      return res.status(result.status).json(result.body || { error: 'OAuth sign-in could not be started.' });
     }
 
-    const clientId = process.env[setup.clientIdEnv];
-    const clientSecret = process.env[setup.clientSecretEnv];
-    if (!clientId || !clientSecret) {
-      return res.status(501).json({
-        error: `${setup.label} one-click sign-in is not enabled on the server yet.`,
-        missing: [
-          !clientId ? setup.clientIdEnv : null,
-          !clientSecret ? setup.clientSecretEnv : null,
-        ].filter(Boolean),
-        nextStep: 'Ask the app owner to add the provider app configuration once in the server environment, then restart the server.',
-      });
-    }
-
-    if (provider === 'twitter') {
-      cleanupExpiredPkceRecords();
-
-      const codeVerifier = generateCodeVerifier();
-      const codeChallenge = generateCodeChallenge(codeVerifier);
-      const state = generateOAuthState();
-
-      pkceStore.set(state, {
-        codeVerifier,
-        createdAt: Date.now(),
-        platform,
-      });
-
-      const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
-      const params = new URLSearchParams({
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        response_type: 'code',
-        scope: setup.scopes.join(' '),
-        state,
-        code_challenge: codeChallenge,
-        code_challenge_method: 'S256',
-      });
-
-      return res.redirect(`${setup.authUrl}?${params.toString()}`);
-    }
-
-    const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
-    const state = Buffer.from(JSON.stringify({
-      platform,
-      provider,
-      createdAt: Date.now(),
-    })).toString('base64url');
-
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: 'code',
-      scope: setup.scopes.join(' '),
-      state,
-    });
-
-    res.redirect(`${setup.authUrl}?${params.toString()}`);
+    res.redirect(result.authUrl);
   });
 
   app.get('/api/oauth/:platform/callback', async (req, res) => {
