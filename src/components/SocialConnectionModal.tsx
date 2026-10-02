@@ -3,7 +3,7 @@ import { blueskyRequest } from '../utils/bluesky';
 import React, { useState } from 'react';
 import { SocialAccountConnection, SocialPlatform } from '../types';
 import { SocialPlatformBrandIcon } from './SocialPlatformBrandIcon';
-import { startOneClickSocialSignIn } from '../utils/socialOAuth';
+import { startOneClickSocialSignIn, disconnectSocialSignIn } from '../utils/socialOAuth';
 import { 
   Share2, 
   CheckCircle2, 
@@ -128,6 +128,10 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
 
     if (connections.find(c => c.id === connId)?.platform === 'bluesky') {
       try { await blueskyRequest('disconnect', {}); }
+      catch (error) { onShowToast((error as Error).message, 'warning'); return; }
+    } else {
+      const platform = connections.find(c => c.id === connId)?.platform;
+      try { if (platform) await disconnectSocialSignIn(platform); }
       catch (error) { onShowToast((error as Error).message, 'warning'); return; }
     }
 

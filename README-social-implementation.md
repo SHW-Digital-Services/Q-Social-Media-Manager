@@ -15,7 +15,7 @@ The app now has backend routes for social publishing:
 
 The frontend no longer marks a post as published just because the user clicked "Publish Now" or "Instant Broadcast". It now calls the backend first. If the social platforms are not configured yet, the app shows a warning and keeps the post unpublished. LinkedIn is wired through the real OAuth callback and Posts API: approved text posts are published as the configured organization when `LINKEDIN_ORGANIZATION_ID` is set.
 
-Important: LinkedIn publishing is implemented for text posts, but OAuth tokens are still held in server memory by this development scaffold. Move them to Supabase Vault or an encrypted `social_account_tokens` table before production deployment.
+LinkedIn publishing is implemented for text posts. OAuth sessions now use encrypted browser cookies; configure the persistent login encryption secret before production use. See **Persistent social logins** below.
 
 ## The Plain-English Version
 
@@ -262,7 +262,7 @@ The receiving website must check the secret before creating a public article.
 
 ## Step 7: Secure Token Storage
 
-The development route currently stores OAuth tokens in server memory. That is useful for testing, but it is not suitable for production because tokens disappear when the server restarts.
+OAuth tokens are stored in encrypted browser cookies and survive server restarts with a stable encryption secret. Shared organisational credentials and unattended scheduling would require a separate server-side credential store.
 
 Production should use one of these:
 
@@ -389,3 +389,12 @@ Connection status restores after reload. **Test** checks the actual session; **D
 Image uploads can be inline base64 PNG/JPEG/WebP or HTTPS URLs from the current approved hosts: `images.unsplash.com` and the project's public Supabase media host. Add other trusted public image hosts explicitly in `BLUESKY_MEDIA_HOSTS`; credentials are never forwarded to media hosts and redirects are rejected. Videos and SVG are rejected rather than silently omitted. Long posts, too many images, image fetch/upload failures, and expired/revoked sessions return a failure and do not claim a successful post. A successful publish includes the provider's AT URI.
 
 Validation: `npm run test:bluesky` runs mocked HTTP integration checks through the real Express routes; no test publishes to a live account. Real login and publishing require the owner's app password entered in the UI.
+
+
+## Persistent social logins
+
+Facebook, Instagram, LinkedIn and TikTok sessions now use per-provider encrypted HttpOnly cookies rather than server memory. Set a stable random server-only `SOCIAL_SESSION_SECRET` of at least 32 characters (or reuse the existing `BLUESKY_SESSION_SECRET`) in Vercel Production and redeploy. AES-GCM tokens remain readable across server instances using the same secret. Rotating the secret requires reconnecting. Cookies are Secure in production, SameSite=Lax to allow provider callbacks, and scoped to `/api`; publishing and disconnect require same-origin requests. OAuth state is encrypted, browser-bound and valid for ten minutes.
+
+The manager restores all connection statuses on ordinary reload, not just OAuth returns. Disconnect clears the provider cookie. Instagram and Facebook exchange initial tokens for long-lived tokens before saving. Sessions last until provider expiry, capped at 60 days; unknown expiry defaults to one day. LinkedIn/TikTok require reconnecting when their token expires; there is no promise of indefinite provider access. Tokens are never stored in localStorage or returned by the status API. There is no cross-browser shared login or unattended scheduler. Existing server-memory connections must reconnect once after deployment.
+
+Staff sign-in remains saved in localStorage until explicit sign-out. This is the existing staff profile/demo gate, not a new server-verified authentication system.

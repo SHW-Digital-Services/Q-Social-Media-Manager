@@ -1,4 +1,3 @@
-import { blueskyRequest } from './utils/bluesky';
 import React, { useState, useEffect } from 'react';
 import { PostItem, PostStatus, PostVersion, SocialAccountConnection } from './types';
 import { MOCK_POSTS, Q_LOGO_URL } from './data/brandData';
@@ -37,18 +36,6 @@ export default function App() {
   const [socialConnections, setSocialConnections] = useState<SocialAccountConnection[]>(INITIAL_SOCIAL_CONNECTIONS);
   const [showSocialModal, setShowSocialModal] = useState<boolean>(false);
 
-  useEffect(() => {
-    let active = true;
-    blueskyRequest('status').then(status => {
-      if (!active) return;
-      setSocialConnections(previous => previous.map(connection => connection.platform === 'bluesky'
-        ? { ...connection, isConnected: status.connected, accountHandle: status.handle ? `@${status.handle}` : connection.accountHandle, connectedAt: status.connectedAt, apiHealth: status.connected ? 'healthy' : 'disconnected', webhookActive: false }
-        : connection));
-    }).catch(() => {});
-    return () => { active = false; };
-  }, []);
-
-
   // Supabase Staff Authentication state (Starts with Login Page to fulfill login-only page requirement)
   const [currentUser, setCurrentUser] = useState<StaffUser | null>(() => {
     const saved = localStorage.getItem('q_intelligence_staff_user');
@@ -85,36 +72,39 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('oauth') !== 'success') {
-      return;
-    }
+    const isOAuthReturn = params.get('oauth') === 'success';
+    let active = true;
 
     const connectedPlatform = params.get('platform');
 
-    fetch('/api/social/status')
-      .then(response => response.json())
+    fetch('/api/social/status', { cache: 'no-store' })
+      .then(response => { if (!response.ok) throw new Error('Connection status unavailable.'); return response.json(); })
       .then(status => {
-        const activeStatuses = status.platforms?.filter((platform: { hasStoredToken: boolean }) => platform.hasStoredToken) || [];
-        if (activeStatuses.length > 0) {
-          setSocialConnections(previous => previous.map(connection => activeStatuses.some((platform: { platform: string }) => platform.platform === connection.platform)
-            ? {
-              ...connection,
-              isConnected: true,
-              connectedAt: new Date().toISOString(),
-              apiHealth: 'healthy',
-              webhookActive: true,
-            }
-            : connection));
-          const connectedName = connectedPlatform ? getSocialPlatformLabel(connectedPlatform) : 'Social channel';
-          showToast(`${connectedName} connected with one-click sign-in.`);
-        } else {
-          showToast('Authorization completed, but the server token could not be verified.', 'warning');
+        if (!active) return;
+        const statuses = status.platforms || [];
+        setSocialConnections(previous => previous.map(connection => {
+          const saved = statuses.find((item: { platform: string }) => item.platform === connection.platform);
+          if (!saved) return connection;
+          return {
+            ...connection,
+            isConnected: Boolean(saved.hasStoredToken),
+            connectedAt: saved.connectedAt,
+            tokenExpiresAt: saved.tokenExpiresAt,
+            accountHandle: saved.accountHandle ? `@${saved.accountHandle}` : connection.accountHandle,
+            apiHealth: saved.hasStoredToken ? 'healthy' : 'disconnected',
+            webhookActive: false,
+          };
+        }));
+        if (isOAuthReturn) {
+          const verified = statuses.some((item: { platform: string; hasStoredToken: boolean }) => item.platform === connectedPlatform && item.hasStoredToken);
+          showToast(verified ? `${getSocialPlatformLabel(connectedPlatform || '')} connected.` : 'Authorization completed, but the saved login could not be verified.', verified ? 'success' : 'warning');
         }
       })
-      .catch(() => showToast('Authorization completed, but connection status could not be loaded.', 'warning'))
+      .catch(() => { if (active && isOAuthReturn) showToast('Connection status could not be loaded.', 'warning'); })
       .finally(() => {
-        window.history.replaceState({}, document.title, window.location.pathname);
+        if (active && isOAuthReturn) window.history.replaceState({}, document.title, window.location.pathname);
       });
+    return () => { active = false; };
   }, []);
 
   const publishBroadcast = async (postData: Partial<PostItem>, postId?: string) => {
