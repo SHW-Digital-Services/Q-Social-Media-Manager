@@ -75,3 +75,13 @@ export async function startOneClickSocialSignIn(platform: SocialPlatform): Promi
   window.location.assign(data.authUrl);
   return { redirected: true };
 }
+
+
+export async function disconnectSocialSignIn(platform: SocialPlatform): Promise<void> {
+  if (!OAUTH_SUPPORTED_PLATFORMS.has(platform)) return;
+  const response = await fetch(`/api/social/${platform}/disconnect`, { method: 'POST' });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'The saved social login could not be removed.');
+  }
+}

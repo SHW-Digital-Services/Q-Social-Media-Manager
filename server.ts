@@ -1,4 +1,5 @@
-import { registerBlueskyRoutes, getBlueskySession, publishBluesky } from './server/bluesky.js';
+import { startSocialState, consumeSocialState, saveSocialSession, getSocialSession, clearSocialSession, supportedSessionProvider } from './server/socialSessions.js';
+import { registerBlueskyRoutes, getBlueskySession, publishBluesky, isBlueskySameOrigin } from './server/bluesky.js';
 import express from 'express';
 import path from 'path';
 import { GoogleGenAI, Type } from '@google/genai';
@@ -45,7 +46,6 @@ const SUPPORTED_SOCIAL_PLATFORMS: SocialPlatform[] = [
   'website',
 ];
 
-const inMemoryOAuthTokens = new Map<string, any>();
 
 const OAUTH_SETUP: Record<string, {
   label: string;
@@ -117,18 +117,13 @@ function formatEnvNames(names: string | string[]): string {
   return envNames(names).join(' or ');
 }
 
-function getConfiguredToken(platform: SocialPlatform): any {
-  const provider = getOAuthProviderForPlatform(platform);
-  return inMemoryOAuthTokens.get(platform) || inMemoryOAuthTokens.get(provider);
-}
-
 type OAuthStartResult = {
   status: number;
   authUrl?: string;
   body?: Record<string, unknown>;
 };
 
-function buildOAuthStartResult(platform: string, req: express.Request): OAuthStartResult {
+function buildOAuthStartResult(platform: string, req: express.Request, res: express.Response): OAuthStartResult {
   const provider = getOAuthProviderForPlatform(platform);
   const setup = OAUTH_SETUP[provider];
 
@@ -158,12 +153,10 @@ function buildOAuthStartResult(platform: string, req: express.Request): OAuthSta
     };
   }
 
-  const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
-  const state = Buffer.from(JSON.stringify({
-    platform,
-    provider,
-    createdAt: Date.now(),
-  })).toString('base64url');
+  let redirectUri: string;
+  let state: string;
+  try { ({ state, redirectUri } = startSocialState(req, res, platform)); }
+  catch (error) { return { status: 503, body: { error: (error as Error).message } }; }
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -263,13 +256,13 @@ async function publishToPlatform(platform: SocialPlatform, payload: PublishReque
     try { return await publishBluesky(req, res, payload); }
     catch (error) { return { platform, status: 'failed', message: (error as Error).message }; }
   }
-  const token = getConfiguredToken(platform);
+  const token = getSocialSession(req, platform);
 
   if (!token) {
     return {
       platform,
       status: 'not_configured',
-      message: `${platform} has no stored OAuth token yet.`,
+      message: `${platform} is disconnected or its provider login has expired.`,
       setupStep: `Open /api/oauth/${platform}/start after creating the provider app and setting the required environment variables.`,
     };
   }
@@ -345,7 +338,10 @@ async function createApp() {
         return {
           platform,
           provider,
-          hasStoredToken: platform === 'bluesky' ? Boolean(getBlueskySession(req)) : Boolean(getConfiguredToken(platform)),
+          hasStoredToken: platform === 'bluesky' ? Boolean(getBlueskySession(req)) : Boolean(getSocialSession(req, platform)),
+          connectedAt: platform === 'bluesky' ? getBlueskySession(req)?.connectedAt : getSocialSession(req, platform)?.connectedAt,
+          accountHandle: platform === 'bluesky' ? getBlueskySession(req)?.handle : undefined,
+          tokenExpiresAt: getSocialSession(req, platform) ? new Date(getSocialSession(req, platform)!.expiresAt).toISOString() : undefined,
           hasClientId: setup ? Boolean(getFirstEnvValue(setup.clientIdEnv)) : false,
           hasClientSecret: setup ? Boolean(getFirstEnvValue(setup.clientSecretEnv)) : false,
           setupRoute: setup ? `/api/oauth/${platform}/start` : null,
@@ -354,8 +350,15 @@ async function createApp() {
     });
   });
 
+  app.post('/api/social/:platform/disconnect', (req, res) => {
+    if (!isBlueskySameOrigin(req)) return res.status(403).json({ error: 'Disconnect must be made from this website.' });
+    if (!supportedSessionProvider(req.params.platform)) return res.status(400).json({ error: 'Unsupported social provider.' });
+    clearSocialSession(res, req.params.platform);
+    res.json({ disconnected: true });
+  });
+
   app.get('/api/oauth/:platform/start-url', (req, res) => {
-    const result = buildOAuthStartResult(req.params.platform, req);
+    const result = buildOAuthStartResult(req.params.platform, req, res);
     if (!result.authUrl) {
       return res.status(result.status).json(result.body || { error: 'OAuth sign-in could not be started.' });
     }
@@ -364,7 +367,7 @@ async function createApp() {
   });
 
   app.get('/api/oauth/:platform/start', (req, res) => {
-    const result = buildOAuthStartResult(req.params.platform, req);
+    const result = buildOAuthStartResult(req.params.platform, req, res);
     if (!result.authUrl) {
       return res.status(result.status).json(result.body || { error: 'OAuth sign-in could not be started.' });
     }
@@ -383,6 +386,10 @@ async function createApp() {
         return res.status(400).json({ error: `OAuth callback is not available for ${platform}.` });
       }
 
+      let redirectUri: string;
+      try { redirectUri = consumeSocialState(req, res, platform); }
+      catch (error) { return res.status(400).json({ error: (error as Error).message }); }
+
       if (!code) {
         return res.status(400).json({ error: 'The provider did not return an authorization code.' });
       }
@@ -399,7 +406,6 @@ async function createApp() {
         });
       }
 
-      const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
       const body = new URLSearchParams({
         grant_type: 'authorization_code',
         code,
@@ -413,7 +419,7 @@ async function createApp() {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body,
       });
-      const tokenBody = await tokenResponse.json().catch(() => ({}));
+      let tokenBody = await tokenResponse.json().catch(() => ({}));
 
       if (!tokenResponse.ok) {
         return res.status(tokenResponse.status).json({
@@ -422,25 +428,37 @@ async function createApp() {
         });
       }
 
-      inMemoryOAuthTokens.set(platform, {
-        ...tokenBody,
-        provider,
-        platform,
-        connectedAt: new Date().toISOString(),
-      });
+      if (provider === 'instagram' || provider === 'facebook') {
+        const exchangeUrl = new URL(provider === 'instagram'
+          ? 'https://graph.instagram.com/access_token'
+          : 'https://graph.facebook.com/v26.0/oauth/access_token');
+        exchangeUrl.searchParams.set('grant_type', provider === 'instagram' ? 'ig_exchange_token' : 'fb_exchange_token');
+        exchangeUrl.searchParams.set('client_secret', clientSecret);
+        if (provider === 'instagram') exchangeUrl.searchParams.set('access_token', tokenBody.access_token);
+        else {
+          exchangeUrl.searchParams.set('client_id', clientId);
+          exchangeUrl.searchParams.set('fb_exchange_token', tokenBody.access_token);
+        }
+        const longLivedResponse = await fetch(exchangeUrl, { signal: AbortSignal.timeout(20000), redirect: 'error' });
+        const longLivedBody = await longLivedResponse.json().catch(() => ({}));
+        if (!longLivedResponse.ok || !longLivedBody.access_token) return res.status(400).json({ error: `${setup.label} could not create a persistent login. Please reconnect.` });
+        tokenBody = { ...tokenBody, ...longLivedBody };
+      }
+      saveSocialSession(res, platform, tokenBody);
 
       const callbackUrl = new URL(getAppUrl(req));
       callbackUrl.searchParams.set('oauth', 'success');
       callbackUrl.searchParams.set('platform', platform);
       return res.redirect(callbackUrl.toString());
     } catch (err: any) {
-      console.error('OAuth callback error:', err);
+      console.error('OAuth callback failed.');
       res.status(500).json({ error: err.message || 'OAuth callback failed.' });
     }
   });
 
   app.post('/api/publish/broadcast', async (req, res) => {
     try {
+      if (!isBlueskySameOrigin(req)) return res.status(403).json({ error: 'Publishing must be requested from this website.' });
       const payload = req.body as PublishRequest;
       const validationError = requirePublishFields(payload);
       if (validationError) {
