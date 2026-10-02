@@ -1,3 +1,5 @@
+import { BlueskyConnectionForm } from './BlueskyConnectionForm';
+import { blueskyRequest } from '../utils/bluesky';
 import React, { useState } from 'react';
 import { SocialAccountConnection, SocialPlatform } from '../types';
 import { SocialPlatformBrandIcon } from './SocialPlatformBrandIcon';
@@ -61,6 +63,10 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
   });
 
   const handleStartConnect = async (conn: SocialAccountConnection) => {
+    if (conn.platform === 'bluesky') {
+      setConnectingPlatform(conn);
+      return;
+    }
     setAuthorizingConnectionId(conn.id);
 
     try {
@@ -115,9 +121,14 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
     }, 1000);
   };
 
-  const handleDisconnect = (connId: string, platformName: string) => {
+  const handleDisconnect = async (connId: string, platformName: string) => {
     if (!window.confirm(`Disconnect ${platformName}? Scheduled posts targeting this channel will be held until reconnected.`)) {
       return;
+    }
+
+    if (connections.find(c => c.id === connId)?.platform === 'bluesky') {
+      try { await blueskyRequest('disconnect', {}); }
+      catch (error) { onShowToast((error as Error).message, 'warning'); return; }
     }
 
     const updated = connections.map(c => {
@@ -136,8 +147,20 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
     onShowToast(`Disconnected ${platformName} from publishing pipelines.`, 'warning');
   };
 
-  const handleTestPing = (conn: SocialAccountConnection) => {
+  const handleTestPing = async (conn: SocialAccountConnection) => {
     setTestingPingId(conn.id);
+    if (conn.platform === 'bluesky') {
+      const started = performance.now();
+      try {
+        await blueskyRequest('check', {});
+        const ms = Math.round(performance.now() - started);
+        setPingResults(prev => ({ ...prev, [conn.id]: { ms, status: 'ok', timestamp: 'Just now' } }));
+        onShowToast(`Bluesky connection verified: ${ms}ms.`);
+      } catch (error) { onShowToast((error as Error).message, 'warning'); }
+      finally { setTestingPingId(null); }
+      return;
+    }
+
 
     setTimeout(() => {
       const latency = Math.floor(Math.random() * 45) + 35;
@@ -322,7 +345,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
                         className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs hover:shadow transition-all flex items-center gap-1.5 cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>{authorizingConnectionId === conn.id ? 'Opening...' : 'Sign in'}</span>
+                        <span>{authorizingConnectionId === conn.id ? 'Opening...' : conn.platform === 'bluesky' ? 'Connect' : 'Sign in'}</span>
                       </button>
                     )}
                   </div>
@@ -372,7 +395,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
                     Connect {connectingPlatform.platformName}
                   </h3>
                   <span className="text-[10px] text-purple-600 font-mono">
-                    {connectingPlatform.requiresOwner ? 'Owner Direct Publishing Authorization' : 'OAuth 2.0 Secure Grant'}
+                    {connectingPlatform.requiresOwner ? 'Owner Direct Publishing Authorization' : connectingPlatform.platform === 'bluesky' ? 'Bluesky app password' : 'OAuth 2.0 Secure Grant'}
                   </span>
                 </div>
               </div>
@@ -384,6 +407,16 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
               </button>
             </div>
 
+            {connectingPlatform.platform === 'bluesky' ? (
+              <BlueskyConnectionForm initialHandle={connectingPlatform.accountHandle}
+                onCancel={() => setConnectingPlatform(null)}
+                onConnected={(handle, connectedAt) => {
+                  onUpdateConnections(connections.map(c => c.id === connectingPlatform.id ? { ...c, accountHandle: `@${handle}`, isConnected: true, connectedAt, apiHealth: 'healthy', webhookActive: false, tokenExpiresAt: undefined } : c));
+                  setConnectingPlatform(null);
+                  onShowToast(`Bluesky connected as @${handle}.`);
+                }}
+              />
+            ) : (
             <form onSubmit={handleConfirmOAuth} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-700">
@@ -451,6 +484,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
                 </button>
               </div>
             </form>
+            )}
 
           </div>
         </div>

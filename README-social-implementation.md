@@ -83,8 +83,7 @@ LINKEDIN_ORGANIZATION_ID=
 TIKTOK_CLIENT_KEY=
 TIKTOK_CLIENT_SECRET=
 
-BLUESKY_HANDLE=
-BLUESKY_APP_PASSWORD=
+BLUESKY_SESSION_SECRET=
 
 Q_WEBSITE_PUBLISH_ENDPOINT=
 Q_WEBSITE_PUBLISH_SECRET=
@@ -240,24 +239,7 @@ TikTok can restrict posts from unaudited apps to private visibility until the ap
 
 ## Step 5: Bluesky Setup
 
-Bluesky uses the AT Protocol. The simplest first version is to use an app password.
-
-1. Sign in to the Q Bluesky account.
-2. Open account settings.
-3. Create an app password.
-4. Save the handle in:
-
-```text
-BLUESKY_HANDLE=
-```
-
-5. Save the app password in:
-
-```text
-BLUESKY_APP_PASSWORD=
-```
-
-The developer then adds the Bluesky publish adapter using `com.atproto.server.createSession` and `com.atproto.repo.createRecord`.
+Set the server-only `BLUESKY_SESSION_SECRET`, deploy, then connect from the manager using your handle and app password. See **Bluesky connection and publishing** below for the implementation, security, and supported media limits.
 
 ## Step 6: Official Website Publishing
 
@@ -394,3 +376,16 @@ http://localhost:3000/api/oauth/linkedin/start
 - Use a test account before posting to the real Q accounts.
 - Do not publish sensitive personal information.
 - Do not rely on the app UI alone. Always check the real social platform after testing.
+
+
+## Bluesky connection and publishing
+
+Bluesky now supports real app-password sign-in, session renewal, text posts, and up to four PNG/JPEG/WebP images (1 MB each). Only Bluesky-hosted accounts are supported. Set a random server-only `BLUESKY_SESSION_SECRET` of at least 32 characters in Vercel Production and redeploy. Generate it locally with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Do not use a `VITE_` prefix or commit the value.
+
+In Channels or the header's connection manager, select **Bluesky → Connect**, enter the full handle and an app password from https://bsky.app/settings/app-passwords. The app password is used for authentication and is not saved. Access and refresh tokens are stored in an AES-256-GCM encrypted, HttpOnly, Secure, SameSite=Strict cookie for this browser, valid for up to 30 days. Keep the encryption secret stable across deployments; rotating it requires reconnecting. There is no shared organisational connection or unattended scheduled dispatch in this implementation. Another browser must connect separately.
+
+Connection status restores after reload. **Test** checks the actual session; **Disconnect** removes this browser's cookie. To revoke the app password globally, delete it in Bluesky. Publishing requires the encrypted session cookie and a same-origin request; no globally configured account credentials can be used by anonymous requests. The app uses the account's Bluesky-hosted PDS returned during login and refreshes expiring access tokens before requests.
+
+Image uploads can be inline base64 PNG/JPEG/WebP or HTTPS URLs from the current approved hosts: `images.unsplash.com` and the project's public Supabase media host. Add other trusted public image hosts explicitly in `BLUESKY_MEDIA_HOSTS`; credentials are never forwarded to media hosts and redirects are rejected. Videos and SVG are rejected rather than silently omitted. Long posts, too many images, image fetch/upload failures, and expired/revoked sessions return a failure and do not claim a successful post. A successful publish includes the provider's AT URI.
+
+Validation: `npm run test:bluesky` runs mocked HTTP integration checks through the real Express routes; no test publishes to a live account. Real login and publishing require the owner's app password entered in the UI.

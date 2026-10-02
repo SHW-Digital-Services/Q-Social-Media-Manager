@@ -1,3 +1,4 @@
+import { registerBlueskyRoutes, getBlueskySession, publishBluesky } from './server/bluesky.js';
 import express from 'express';
 import path from 'path';
 import { GoogleGenAI, Type } from '@google/genai';
@@ -257,7 +258,11 @@ async function publishToLinkedIn(payload: PublishRequest, token: any): Promise<P
   };
 }
 
-async function publishToPlatform(platform: SocialPlatform, payload: PublishRequest): Promise<PublishResult> {
+async function publishToPlatform(platform: SocialPlatform, payload: PublishRequest, req: express.Request, res: express.Response): Promise<PublishResult> {
+  if (platform === 'bluesky') {
+    try { return await publishBluesky(req, res, payload); }
+    catch (error) { return { platform, status: 'failed', message: (error as Error).message }; }
+  }
   const token = getConfiguredToken(platform);
 
   if (!token) {
@@ -319,6 +324,7 @@ WE ARE NOT:
 async function createApp() {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
+  registerBlueskyRoutes(app);
 
   // Health check
   app.get('/api/health', (req, res) => {
@@ -331,6 +337,7 @@ async function createApp() {
   });
 
   app.get('/api/social/status', (req, res) => {
+    res.set('Cache-Control', 'no-store');
     res.json({
       platforms: SUPPORTED_SOCIAL_PLATFORMS.map(platform => {
         const provider = getOAuthProviderForPlatform(platform);
@@ -338,7 +345,7 @@ async function createApp() {
         return {
           platform,
           provider,
-          hasStoredToken: Boolean(getConfiguredToken(platform)),
+          hasStoredToken: platform === 'bluesky' ? Boolean(getBlueskySession(req)) : Boolean(getConfiguredToken(platform)),
           hasClientId: setup ? Boolean(getFirstEnvValue(setup.clientIdEnv)) : false,
           hasClientSecret: setup ? Boolean(getFirstEnvValue(setup.clientSecretEnv)) : false,
           setupRoute: setup ? `/api/oauth/${platform}/start` : null,
@@ -441,7 +448,7 @@ async function createApp() {
       }
 
       const results = await Promise.all(
-        payload.platforms!.map(platform => publishToPlatform(platform, payload))
+        payload.platforms!.map(platform => publishToPlatform(platform, payload, req, res))
       );
       const published = results.filter(result => result.status === 'published');
       const failed = results.filter(result => result.status !== 'published');
