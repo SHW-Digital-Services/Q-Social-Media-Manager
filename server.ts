@@ -261,9 +261,14 @@ function buildOAuthStartResult(platform: string, req: express.Request): OAuthSta
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: setup.scopes.join(' '),
+    scope: setup.scopes.join(provider === 'instagram' ? ',' : ' '),
     state,
   });
+
+  if (provider === 'instagram') {
+    params.set('enable_fb_login', '0');
+    params.set('force_authentication', '1');
+  }
 
   return {
     status: 200,
