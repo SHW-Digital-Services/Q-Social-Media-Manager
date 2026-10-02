@@ -269,7 +269,6 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
             className="text-xs bg-slate-50 border border-slate-200 text-slate-700 py-1.5 px-3 rounded-full focus:outline-none cursor-pointer"
           >
             <option value="all">All Platforms</option>
-            <option value="instagram">Instagram</option>
             <option value="linkedin">LinkedIn</option>
             <option value="tiktok">TikTok</option>
             <option value="bluesky">Bluesky</option>

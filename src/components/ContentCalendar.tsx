@@ -16,7 +16,6 @@ import {
   Sparkles,
   Layers,
   X,
-  Instagram,
   Linkedin,
   Video,
   Cloud,
@@ -238,7 +237,6 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
 
   const renderPlatformIcon = (plat: SocialPlatform) => {
     switch (plat) {
-      case 'instagram': return <Instagram className="w-3 h-3 text-pink-600" />;
       case 'linkedin': return <Linkedin className="w-3 h-3 text-blue-600" />;
       case 'tiktok': return <Video className="w-3 h-3 text-black" />;
       case 'bluesky': return <Cloud className="w-3 h-3 text-sky-500" />;
@@ -370,7 +368,6 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
               className="px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-purple-500"
             >
               <option value="all">All Channels</option>
-              <option value="instagram">Instagram</option>
               <option value="linkedin">LinkedIn</option>
               <option value="bluesky">Bluesky</option>
               <option value="tiktok">TikTok</option>

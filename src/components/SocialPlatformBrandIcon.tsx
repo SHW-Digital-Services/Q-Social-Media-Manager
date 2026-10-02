@@ -27,21 +27,6 @@ export const SocialPlatformBrandIcon: React.FC<SocialPlatformBrandIconProps> = (
   const borderClass = showBorder ? 'border border-slate-200/80 shadow-2xs' : '';
 
   switch (platform) {
-    case 'instagram':
-      return (
-        <div 
-          className={`${selectedSize.container} flex items-center justify-center shrink-0 bg-gradient-to-tr from-[#fd5949] via-[#d6249f] to-[#285AEB] text-white ${borderClass} ${className}`}
-          title="Instagram"
-        >
-          {/* Authentic Instagram glyph */}
-          <svg className={selectedSize.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-            <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" strokeWidth="2.5" />
-          </svg>
-        </div>
-      );
-
     case 'linkedin':
       return (
         <div 

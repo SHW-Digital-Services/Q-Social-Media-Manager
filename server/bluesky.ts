@@ -1,3 +1,4 @@
+import { loadPublishingImage } from './media.js';
 import crypto from 'node:crypto';
 import type { Request, Response, Express } from 'express';
 
@@ -109,29 +110,6 @@ export function registerBlueskyRoutes(app: Express) {
     } catch (error) { res.status(401).json({ error: (error as Error).message }); }
   });
 }
-async function imageBytes(value: string) {
-  let bytes: Buffer;
-  let mime: string;
-  const inline = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(value);
-  if (inline) { mime = inline[1]; bytes = Buffer.from(inline[2], 'base64'); }
-  else {
-    const url = new URL(value);
-    const allowed = new Set(['images.unsplash.com', 'brnhalxydcakutxiregp.supabase.co', ... (process.env.BLUESKY_MEDIA_HOSTS || '').split(',').map(v => v.trim()).filter(Boolean)]);
-    if (url.protocol !== 'https:' || url.port || url.username || url.password || !allowed.has(url.hostname)) throw new Error('Bluesky images must use PNG, JPEG or WebP uploads, or an approved media host.');
-    const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(20000) });
-    if (!response.ok) throw new Error('Could not download an image for Bluesky.');
-    mime = response.headers.get('content-type')?.split(';')[0] || '';
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(mime)) throw new Error('Bluesky supports PNG, JPEG and WebP images here; videos and SVG are not supported.');
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('Image download returned no content.');
-    const chunks: Buffer[] = []; let size = 0;
-    try { while (true) { const { done, value } = await reader.read(); if (done) break; size += value.length; if (size > 1000000) throw new Error('Each Bluesky image must be at most 1 MB.'); chunks.push(Buffer.from(value)); } }
-    finally { await reader.cancel(); }
-    bytes = Buffer.concat(chunks);
-  }
-  if (!bytes.length || bytes.length > 1000000) throw new Error('Each Bluesky image must be at most 1 MB.');
-  return { bytes, mime };
-}
 export async function publishBluesky(req: Request, res: Response, payload: { content?: string; mediaUrls?: string[]; tags?: string[]; title?: string; postId?: string }) {
   if (!isBlueskySameOrigin(req)) throw new Error('Publishing must be requested from this website.');
   const text = [payload.content?.trim(), ...(payload.tags || [])].filter(Boolean).join('\n');
@@ -140,7 +118,7 @@ export async function publishBluesky(req: Request, res: Response, payload: { con
   const session = await refresh(req, res);
   const images = [];
   for (const value of payload.mediaUrls || []) {
-    const { bytes, mime } = await imageBytes(value);
+    const { bytes, mime } = await loadPublishingImage(value);
     const response = await fetch(`${session.service}/xrpc/com.atproto.repo.uploadBlob`, { method: 'POST', headers: { Authorization: `Bearer ${session.accessJwt}`, 'Content-Type': mime }, body: new Uint8Array(bytes), signal: AbortSignal.timeout(20000), redirect: 'error' });
     const data = await response.json() as any;
     if (!response.ok || !data.blob) throw new Error('Bluesky image upload failed. The post was not published.');

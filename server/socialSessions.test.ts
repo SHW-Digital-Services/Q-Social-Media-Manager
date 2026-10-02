@@ -9,14 +9,13 @@ test('social logins survive a fresh process and validate state, expiry and disco
   process.env.APP_URL = 'https://social.q-ai.online';
   process.env.SOCIAL_SESSION_SECRET = 'synthetic-test-encryption-secret-over-32-characters';
   process.env.META_APP_ID = 'test-app'; process.env.META_APP_SECRET = 'test-secret';
-  process.env.INSTAGRAM_APP_ID = 'test-instagram'; process.env.INSTAGRAM_APP_SECRET = 'test-instagram-secret';
   const { default: handler } = await import('../server.js');
   const actualFetch = globalThis.fetch;
   const calls: string[] = [];
   let failLongToken = false;
   globalThis.fetch = async input => {
     const url = String(input); calls.push(url);
-    if (url.includes('grant_type=ig_exchange_token') || url.includes('grant_type=fb_exchange_token')) {
+    if (url.includes('grant_type=fb_exchange_token')) {
       return failLongToken ? Response.json({ error: 'invalid' }, { status: 400 }) : Response.json({ access_token: 'private-long-lived-token', expires_in: 5184000 });
     }
     return Response.json({ access_token: 'private-short-lived-token', expires_in: 3600 });
@@ -27,7 +26,7 @@ test('social logins survive a fresh process and validate state, expiry and disco
   const headers = (cookie = '', origin = process.env.APP_URL!) => ({ Cookie: cookie, Origin: origin });
   const metadata = (response: Response) => response.json();
   try {
-    for (const platform of ['facebook', 'instagram']) {
+    for (const platform of ['facebook']) {
       const start = await actualFetch(`${base}/api/oauth/${platform}/start-url`);
       assert.equal(start.status, 200);
       const state = new URL((await start.json()).authUrl).searchParams.get('state');
@@ -58,7 +57,7 @@ test('social logins survive a fresh process and validate state, expiry and disco
       const disconnected = await actualFetch(`${base}/api/social/${platform}/disconnect`, { method: 'POST', headers: headers(cookie) });
       assert.equal(disconnected.status, 200);
       assert.match(disconnected.headers.get('set-cookie')!, /Expires=Thu, 01 Jan 1970/);
-      assert.ok(calls.some(url => url.includes(platform === 'instagram' ? 'ig_exchange_token' : 'fb_exchange_token')));
+      assert.ok(calls.some(url => url.includes('fb_exchange_token')));
     }
     // Provider expiry must not be disguised as a persistent healthy login.
     let saved = '';

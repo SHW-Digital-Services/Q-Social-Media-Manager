@@ -2,28 +2,15 @@ import { SocialAccountConnection } from '../types';
 
 export const INITIAL_SOCIAL_CONNECTIONS: SocialAccountConnection[] = [
   {
-    id: 'conn-instagram',
-    platform: 'instagram',
-    platformName: 'Instagram',
-    accountHandle: '@q_intelligence',
-    displayName: 'Q Intelligence • Official',
-    avatarUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=150&q=80',
-    accountType: 'organization',
-    isConnected: false,
-    scopes: ['instagram_basic', 'instagram_content_publish', 'instagram_manage_comments', 'pages_show_list'],
-    webhookActive: false,
-    apiHealth: 'disconnected'
-  },
-  {
     id: 'conn-linkedin',
     platform: 'linkedin',
-    platformName: 'LinkedIn Organization',
-    accountHandle: 'q-intelligence-foundation',
-    displayName: 'Q Intelligence Foundation',
+    platformName: 'LinkedIn Profile',
+    accountHandle: 'Your LinkedIn profile',
+    displayName: 'LinkedIn personal profile',
     avatarUrl: 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&w=150&q=80',
-    accountType: 'organization',
+    accountType: 'personal',
     isConnected: false,
-    scopes: ['w_member_social', 'r_organization_social', 'w_organization_social'],
+    scopes: ['openid', 'profile', 'w_member_social'],
     webhookActive: false,
     apiHealth: 'disconnected'
   },
@@ -70,16 +57,16 @@ export const INITIAL_SOCIAL_CONNECTIONS: SocialAccountConnection[] = [
     id: 'conn-website',
     platform: 'website',
     platformName: 'Official Website (q-ai.online)',
-    accountHandle: 'q-ai.online/journal',
-    displayName: 'Q Intelligence Web Journal & Portal',
+    accountHandle: 'www.q-ai.online/news',
+    displayName: 'Q News & Updates',
     avatarUrl: '',
     accountType: 'organization',
     isConnected: false,
-    scopes: ['website_cms_publish', 'owner_exclusive_dispatch', 'cdn_cache_purge'],
+    scopes: ['news_publish'],
     webhookActive: false,
     apiHealth: 'disconnected',
     requiresOwner: true,
-    notes: 'Direct publishing to the official Q Intelligence web portal. Strictly requires Owner (Scott Harvey-Whittle) authorization.'
+    notes: 'Publishes to the public News page using a content API token authorised in the website CRM.'
   }
 ];
 

@@ -1,13 +1,14 @@
 import crypto from 'node:crypto';
 import type { Request, Response } from 'express';
 
-const PROVIDERS = new Set(['instagram', 'facebook', 'linkedin', 'tiktok']);
+const PROVIDERS = new Set(['facebook', 'linkedin', 'tiktok', 'website']);
 const COOKIE_DAYS = 60;
 export type SocialSession = {
   platform: string;
   access_token: string;
   refresh_token?: string;
   memberUrn?: string;
+  accountHandle?: string;
   user_id?: string;
   connectedAt: string;
   expiresAt: number;
@@ -57,6 +58,7 @@ export function saveSocialSession(res: Response, platform: string, token: any) {
   const lifetime = Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, COOKIE_DAYS * 86400) : 86400;
   const session: SocialSession = { platform, access_token: token.access_token, connectedAt: new Date().toISOString(), expiresAt: Date.now() + lifetime * 1000 };
   if (typeof token.refresh_token === 'string') session.refresh_token = token.refresh_token;
+  if (typeof token.accountHandle === 'string') session.accountHandle = token.accountHandle;
   if (typeof token.memberUrn === 'string') session.memberUrn = token.memberUrn;
   if (token.user_id) session.user_id = String(token.user_id);
   const value = seal(session);

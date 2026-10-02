@@ -1,3 +1,5 @@
+import { publishLinkedIn, registerLinkedInRoutes } from './server/linkedin.js';
+import { registerWebsiteRoutes, publishWebsite } from './server/website.js';
 import { startSocialState, consumeSocialState, saveSocialSession, getSocialSession, clearSocialSession, supportedSessionProvider } from './server/socialSessions.js';
 import { registerBlueskyRoutes, getBlueskySession, publishBluesky, isBlueskySameOrigin } from './server/bluesky.js';
 import express from 'express';
@@ -11,7 +13,6 @@ dotenv.config();
 const PORT = 3000;
 
 type SocialPlatform =
-  | 'instagram'
   | 'linkedin'
   | 'tiktok'
   | 'bluesky'
@@ -38,7 +39,6 @@ type PublishResult = {
 };
 
 const SUPPORTED_SOCIAL_PLATFORMS: SocialPlatform[] = [
-  'instagram',
   'facebook',
   'linkedin',
   'tiktok',
@@ -67,25 +67,13 @@ const OAUTH_SETUP: Record<string, {
       'pages_manage_posts',
     ],
   },
-  instagram: {
-    label: 'Instagram',
-    authUrl: 'https://www.instagram.com/oauth/authorize',
-    tokenUrl: 'https://api.instagram.com/oauth/access_token',
-    clientIdEnv: 'INSTAGRAM_APP_ID',
-    clientSecretEnv: 'INSTAGRAM_APP_SECRET',
-    scopes: [
-      'instagram_business_basic',
-      'instagram_business_content_publish',
-      'instagram_business_manage_comments',
-    ],
-  },
   linkedin: {
     label: 'LinkedIn',
     authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
     tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
     clientIdEnv: 'LINKEDIN_CLIENT_ID',
     clientSecretEnv: 'LINKEDIN_CLIENT_SECRET',
-    scopes: ['openid', 'profile', 'w_member_social', 'w_organization_social', 'r_organization_social'],
+    scopes: ['openid', 'profile', 'w_member_social'],
   },
   tiktok: {
     label: 'TikTok',
@@ -162,14 +150,10 @@ function buildOAuthStartResult(platform: string, req: express.Request, res: expr
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: setup.scopes.join(provider === 'instagram' ? ',' : ' '),
+    scope: setup.scopes.join(' '),
     state,
   });
 
-  if (provider === 'instagram') {
-    params.set('enable_fb_login', '0');
-    params.set('force_authentication', '1');
-  }
 
   if (provider === 'facebook' && process.env.META_LOGIN_CONFIG_ID) {
     params.set('config_id', process.env.META_LOGIN_CONFIG_ID);
@@ -196,66 +180,12 @@ function requirePublishFields(payload: PublishRequest): string | null {
   return null;
 }
 
-async function publishToLinkedIn(payload: PublishRequest, token: any): Promise<PublishResult> {
-  const organizationId = process.env.LINKEDIN_ORGANIZATION_ID;
-  const author = organizationId
-    ? `urn:li:organization:${organizationId}`
-    : token.memberUrn;
-
-  if (!author) {
-    return {
-      platform: 'linkedin',
-      status: 'not_configured',
-      message: 'LinkedIn needs LINKEDIN_ORGANIZATION_ID before it can publish.',
-      setupStep: 'Set LINKEDIN_ORGANIZATION_ID to the LinkedIn organization page ID, then reconnect LinkedIn.',
-    };
-  }
-
-  const response = await fetch('https://api.linkedin.com/rest/posts', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token.access_token}`,
-      'Content-Type': 'application/json',
-      'LinkedIn-Version': process.env.LINKEDIN_VERSION || '202601',
-      'X-Restli-Protocol-Version': '2.0.0',
-    },
-    body: JSON.stringify({
-      author,
-      commentary: payload.content!.trim(),
-      visibility: 'PUBLIC',
-      distribution: {
-        feedDistribution: 'MAIN_FEED',
-        targetEntities: [],
-        thirdPartyDistributionChannels: [],
-      },
-      lifecycleState: 'PUBLISHED',
-      isReshareDisabledByAuthor: false,
-    }),
-  });
-
-  if (!response.ok) {
-    const providerResponse = await response.json().catch(() => ({}));
-    return {
-      platform: 'linkedin',
-      status: 'failed',
-      message: 'LinkedIn rejected the post.',
-      setupStep: JSON.stringify(providerResponse),
-    };
-  }
-
-  return {
-    platform: 'linkedin',
-    status: 'published',
-    message: 'LinkedIn post published successfully.',
-    remoteId: response.headers.get('x-restli-id') || undefined,
-  };
-}
-
 async function publishToPlatform(platform: SocialPlatform, payload: PublishRequest, req: express.Request, res: express.Response): Promise<PublishResult> {
   if (platform === 'bluesky') {
     try { return await publishBluesky(req, res, payload); }
     catch (error) { return { platform, status: 'failed', message: (error as Error).message }; }
   }
+  if (platform === 'website') return publishWebsite(req, payload);
   const token = getSocialSession(req, platform);
 
   if (!token) {
@@ -268,7 +198,7 @@ async function publishToPlatform(platform: SocialPlatform, payload: PublishReque
   }
 
   if (platform === 'linkedin') {
-    return publishToLinkedIn(payload, token);
+    return publishLinkedIn(payload, token);
   }
 
   return {
@@ -318,6 +248,8 @@ async function createApp() {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
   registerBlueskyRoutes(app);
+  registerWebsiteRoutes(app);
+  registerLinkedInRoutes(app);
 
   // Health check
   app.get('/api/health', (req, res) => {
@@ -340,7 +272,7 @@ async function createApp() {
           provider,
           hasStoredToken: platform === 'bluesky' ? Boolean(getBlueskySession(req)) : Boolean(getSocialSession(req, platform)),
           connectedAt: platform === 'bluesky' ? getBlueskySession(req)?.connectedAt : getSocialSession(req, platform)?.connectedAt,
-          accountHandle: platform === 'bluesky' ? getBlueskySession(req)?.handle : undefined,
+          accountHandle: platform === 'bluesky' ? getBlueskySession(req)?.handle : getSocialSession(req, platform)?.accountHandle,
           tokenExpiresAt: getSocialSession(req, platform) ? new Date(getSocialSession(req, platform)!.expiresAt).toISOString() : undefined,
           hasClientId: setup ? Boolean(getFirstEnvValue(setup.clientIdEnv)) : false,
           hasClientSecret: setup ? Boolean(getFirstEnvValue(setup.clientSecretEnv)) : false,
@@ -428,21 +360,23 @@ async function createApp() {
         });
       }
 
-      if (provider === 'instagram' || provider === 'facebook') {
-        const exchangeUrl = new URL(provider === 'instagram'
-          ? 'https://graph.instagram.com/access_token'
-          : 'https://graph.facebook.com/v26.0/oauth/access_token');
-        exchangeUrl.searchParams.set('grant_type', provider === 'instagram' ? 'ig_exchange_token' : 'fb_exchange_token');
+      if (provider === 'facebook') {
+        const exchangeUrl = new URL('https://graph.facebook.com/v26.0/oauth/access_token');
+        exchangeUrl.searchParams.set('grant_type', 'fb_exchange_token');
         exchangeUrl.searchParams.set('client_secret', clientSecret);
-        if (provider === 'instagram') exchangeUrl.searchParams.set('access_token', tokenBody.access_token);
-        else {
-          exchangeUrl.searchParams.set('client_id', clientId);
-          exchangeUrl.searchParams.set('fb_exchange_token', tokenBody.access_token);
-        }
+        exchangeUrl.searchParams.set('client_id', clientId);
+        exchangeUrl.searchParams.set('fb_exchange_token', tokenBody.access_token);
         const longLivedResponse = await fetch(exchangeUrl, { signal: AbortSignal.timeout(20000), redirect: 'error' });
         const longLivedBody = await longLivedResponse.json().catch(() => ({}));
         if (!longLivedResponse.ok || !longLivedBody.access_token) return res.status(400).json({ error: `${setup.label} could not create a persistent login. Please reconnect.` });
         tokenBody = { ...tokenBody, ...longLivedBody };
+      }
+      if (provider === 'linkedin') {
+        const profileResponse = await fetch('https://api.linkedin.com/v2/userinfo', { headers: { Authorization: `Bearer ${tokenBody.access_token}` }, signal: AbortSignal.timeout(20000), redirect: 'error' });
+        const profile = await profileResponse.json().catch(() => ({}));
+        if (!profileResponse.ok || typeof profile.sub !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(profile.sub)) return res.status(400).json({ error: 'LinkedIn could not verify your personal profile. Enable Sign In with LinkedIn using OpenID Connect and reconnect.' });
+        tokenBody.memberUrn = `urn:li:person:${profile.sub}`;
+        tokenBody.accountHandle = profile.name || 'LinkedIn profile';
       }
       saveSocialSession(res, platform, tokenBody);
 
@@ -656,7 +590,7 @@ Return valid JSON adhering to the specified schema.
   // Rewrite in Q Intelligence Voice
   app.post('/api/compliance/rewrite', async (req, res) => {
     try {
-      const { text, style = 'Warm & Supportive', platform = 'Instagram' } = req.body;
+      const { text, style = 'Warm & Supportive', platform = 'LinkedIn' } = req.body;
       if (!text) {
         return res.status(400).json({ error: 'Text is required for rewrite.' });
       }

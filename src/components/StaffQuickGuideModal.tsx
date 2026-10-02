@@ -31,7 +31,7 @@ export const StaffQuickGuideModal: React.FC<StaffQuickGuideModalProps> = ({
     {
       step: '1',
       title: 'Compose Your Broadcast',
-      description: 'Go to the Broadcast Composer. Write your text or pick an official design template. The system checks your character limits for Instagram, Facebook, and LinkedIn automatically.',
+      description: 'Go to the Broadcast Composer. Write your text or pick an official design template. The system checks your character limits for Facebook and LinkedIn automatically.',
       icon: Send,
       color: 'bg-purple-100 text-purple-700',
       actionTab: 'composer',

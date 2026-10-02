@@ -1,3 +1,5 @@
+import { WebsiteConnectionForm } from './WebsiteConnectionForm';
+import { websiteRequest } from '../utils/website';
 import { BlueskyConnectionForm } from './BlueskyConnectionForm';
 import { blueskyRequest } from '../utils/bluesky';
 import React, { useState } from 'react';
@@ -58,7 +60,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
   });
 
   const handleStartConnect = async (conn: SocialAccountConnection) => {
-    if (conn.platform === 'bluesky') {
+    if (conn.platform === 'bluesky' || conn.platform === 'website') {
       setConnectingModalConn(conn);
       return;
     }
@@ -148,6 +150,15 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
 
   const handleTestPing = async (conn: SocialAccountConnection) => {
     setTestingPingId(conn.id);
+    if (conn.platform === 'website' || conn.platform === 'linkedin') {
+      const started = performance.now();
+      try { if (conn.platform === 'website') await websiteRequest('check');
+        else { const response = await fetch('/api/linkedin/check', { method: 'POST' }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'LinkedIn connection check failed.'); } const ms = Math.round(performance.now() - started); setPingData(prev => ({ ...prev, [conn.id]: { latency: ms, timestamp: 'Just now' } })); onShowToast(`${conn.platformName} connection verified: ${ms}ms.`); }
+      catch (error) { onShowToast((error as Error).message, 'warning'); }
+      finally { setTestingPingId(null); }
+      return;
+    }
+
     if (conn.platform === 'bluesky') {
       const started = performance.now();
       try {
@@ -193,7 +204,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
           </h2>
 
           <p className="text-sm text-slate-300 leading-relaxed">
-            Sign in to supported social networks in one click. Broadcast approved posts simultaneously to Instagram, Facebook, LinkedIn, TikTok, and Bluesky once their server-side provider setup is enabled.
+            Sign in to supported social networks in one click. Broadcast approved posts simultaneously to Facebook, LinkedIn, TikTok, and Bluesky once their server-side provider setup is enabled.
           </p>
 
           <div className="pt-2 flex flex-wrap items-center gap-3">
@@ -333,7 +344,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
                       className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>{submittingOAuthId === conn.id ? 'Opening...' : conn.platform === 'bluesky' ? 'Connect' : 'Sign in'}</span>
+                      <span>{submittingOAuthId === conn.id ? 'Opening...' : (conn.platform === 'bluesky' || conn.platform === 'website') ? 'Connect' : 'Sign in'}</span>
                     </button>
                   )}
                 </div>
@@ -391,7 +402,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
                     Connect {connectingModalConn.platformName}
                   </h3>
                   <span className="text-[10px] text-purple-600 font-mono">
-                    {connectingModalConn.requiresOwner ? 'Owner REST API / Webhook Integration' : connectingModalConn.platform === 'bluesky' ? 'Bluesky app password' : 'OAuth 2.0 Authorization'}
+                    {connectingModalConn.platform === 'website' ? 'Website publishing token' : connectingModalConn.requiresOwner ? 'Owner REST API / Webhook Integration' : connectingModalConn.platform === 'bluesky' ? 'Bluesky app password' : 'OAuth 2.0 Authorization'}
                   </span>
                 </div>
               </div>
@@ -410,6 +421,14 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
                   onUpdateConnections(connections.map(c => c.id === connectingModalConn.id ? { ...c, accountHandle: `@${handle}`, isConnected: true, connectedAt, apiHealth: 'healthy', webhookActive: false, tokenExpiresAt: undefined } : c));
                   setConnectingModalConn(null);
                   onShowToast(`Bluesky connected as @${handle}.`);
+                }}
+              />
+            ) : connectingModalConn.platform === 'website' ? (
+              <WebsiteConnectionForm onCancel={() => setConnectingModalConn(null)}
+                onConnected={(name, connectedAt) => {
+                  onUpdateConnections(connections.map(c => c.id === connectingModalConn.id ? { ...c, accountHandle: name, isConnected: true, connectedAt, apiHealth: 'healthy', webhookActive: false, tokenExpiresAt: undefined } : c));
+                  setConnectingModalConn(null);
+                  onShowToast('Q website connected. Posts will appear on its News page.');
                 }}
               />
             ) : (
