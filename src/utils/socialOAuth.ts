@@ -63,7 +63,7 @@ export async function startOneClickSocialSignIn(platform: SocialPlatform): Promi
   if (contentType.includes('text/html')) {
     return {
       redirected: false,
-      message: 'The social sign-in backend is not handling /api routes. Stop the Vite-only server and run npm.cmd run dev so the Express OAuth server is active.',
+      message: 'The social sign-in API returned a web page instead of JSON. On Vercel, route /api requests to the Express serverless function and redeploy. For local development, run npm run dev.',
     };
   }
 
@@ -79,4 +79,3 @@ export async function startOneClickSocialSignIn(platform: SocialPlatform): Promi
   window.location.assign(data.authUrl);
   return { redirected: true };
 }
-

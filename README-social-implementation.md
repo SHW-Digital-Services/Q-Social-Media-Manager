@@ -52,6 +52,14 @@ APP_URL=https://your-public-site-url
 
 ## Environment Variables
 
+### Vercel deployment
+
+The `/api/:path*` rewrite in `vercel.json` must come before the frontend fallback and target `/api/index`, the Express serverless entry point. Environment variables alone do not enable API routing. Redeploy after changing routing or production environment variables.
+
+For `social.q-ai.online`, set `APP_URL=https://social.q-ai.online` and configure `INSTAGRAM_APP_ID` and `INSTAGRAM_APP_SECRET` in the Vercel Production environment. Register `https://social.q-ai.online/api/oauth/instagram/callback` as an allowed redirect URI in the Instagram developer app.
+
+After deployment, open `/api/health`: it must return JSON with `status: "ok"`. `/api/oauth/instagram/start-url` must return JSON containing an Instagram authorization URL, or a JSON setup error identifying missing variables. If either returns the frontend HTML, check that the deployed commit includes the API function and routing configuration.
+
 Copy `.env.example` to `.env.local` for local testing. Fill in only the values you have created through the official developer dashboards.
 
 Required groups:
