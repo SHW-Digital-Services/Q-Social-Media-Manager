@@ -42,32 +42,6 @@ export const SocialPlatformBrandIcon: React.FC<SocialPlatformBrandIconProps> = (
         </div>
       );
 
-    case 'threads':
-      return (
-        <div 
-          className={`${selectedSize.container} flex items-center justify-center shrink-0 bg-black text-white ${borderClass} ${className}`}
-          title="Threads"
-        >
-          {/* Authentic Threads "@" ligature glyph */}
-          <svg className={selectedSize.icon} viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12.186 24C5.556 24 0 18.667 0 12.008 0 5.378 5.518 0 12.064 0 18.067 0 23.3 4.417 23.953 10.608h-3.41c-.604-4.418-4.398-7.556-8.479-7.556-4.908 0-8.868 3.99-8.868 8.956 0 4.966 3.96 8.956 8.868 8.956 3.49 0 6.643-2.022 7.942-5.105h-7.942v-3.052h11.238c.115.688.174 1.397.174 2.112 0 6.66-5.467 12.081-11.49 12.081z" />
-          </svg>
-        </div>
-      );
-
-    case 'twitter':
-      return (
-        <div 
-          className={`${selectedSize.container} flex items-center justify-center shrink-0 bg-[#000000] text-white ${borderClass} ${className}`}
-          title="X (formerly Twitter)"
-        >
-          {/* Official X Logo */}
-          <svg className={selectedSize.icon} viewBox="0 0 24 24" fill="currentColor">
-            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-          </svg>
-        </div>
-      );
-
     case 'linkedin':
       return (
         <div 

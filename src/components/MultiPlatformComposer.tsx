@@ -51,7 +51,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
   const [title, setTitle] = useState(initialPost?.title || '');
   const [content, setContent] = useState(initialPost?.content || '');
   const [selectedPlatforms, setSelectedPlatforms] = useState<SocialPlatform[]>(
-    initialPost?.platforms || ['instagram', 'threads', 'twitter']
+    initialPost?.platforms || ['instagram', 'facebook']
   );
   const hasWebsiteTarget = selectedPlatforms.includes('website');
   const [previewPlatform, setPreviewPlatform] = useState<SocialPlatform>('instagram');
@@ -798,45 +798,8 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
             </div>
           )}
 
-          {/* X / Twitter Mockup */}
-          {previewPlatform === 'twitter' && (
-            <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-md p-4 text-slate-900 space-y-3 font-sans">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-full bg-[#020617] p-1 border border-purple-400 shrink-0 flex items-center justify-center overflow-hidden">
-                  <QLogo className="w-full h-full object-contain" />
-                </div>
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold">Q Intelligence</span>
-                    <span className="text-cyan-500 text-xs">☑️</span>
-                    <span className="text-xs text-slate-400">@QIntelligence</span>
-                  </div>
-                  <p className="text-xs leading-relaxed text-slate-800">
-                    {content || "Hi there. However your week is unfolding, remember that your feelings are valid. 💜"}
-                  </p>
-                  {tags.length > 0 && (
-                    <div className="text-[11px] text-cyan-600 font-mono">
-                      {tags.join(' ')}
-                    </div>
-                  )}
-                  {mediaUrls[0] && (
-                    <div className="mt-2 rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video flex items-center justify-center">
-                      <img src={mediaUrls[0]} alt="Media" className="w-full h-full object-contain p-2" />
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between text-xs text-slate-400 pt-2 font-mono">
-                    <span>💬 32</span>
-                    <span>🔁 142</span>
-                    <span>❤️ 890</span>
-                    <span>📊 12.4K</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Threads / Bluesky / TikTok Fallback Card */}
-          {(previewPlatform === 'threads' || previewPlatform === 'tiktok' || previewPlatform === 'bluesky' || previewPlatform === 'facebook') && (
+          {/* Facebook / Bluesky / TikTok Fallback Card */}
+          {(previewPlatform === 'tiktok' || previewPlatform === 'bluesky' || previewPlatform === 'facebook') && (
             <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-md p-5 text-slate-900 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

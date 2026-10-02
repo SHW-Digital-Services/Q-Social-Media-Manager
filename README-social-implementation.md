@@ -79,8 +79,6 @@ LINKEDIN_CLIENT_ID=
 LINKEDIN_CLIENT_SECRET=
 LINKEDIN_ORGANIZATION_ID=
 
-X_CLIENT_ID=
-X_CLIENT_SECRET=
 
 TIKTOK_CLIENT_KEY=
 TIKTOK_CLIENT_SECRET=
@@ -94,13 +92,12 @@ Q_WEBSITE_PUBLISH_SECRET=
 
 Never put these values into files that are committed to GitHub.
 
-## Step 1: Meta Setup for Instagram, Facebook, and Threads
+## Step 1: Meta Setup for Instagram and Facebook
 
 Meta covers three targets:
 
 - Instagram professional account
 - Facebook Page
-- Threads profile
 
 You need a Meta Developer account and a Meta app.
 
@@ -108,7 +105,7 @@ You need a Meta Developer account and a Meta app.
 2. Sign in with the Facebook account that manages the Q Facebook Page and linked Instagram account.
 3. Create a new app.
 4. Choose a business or content publishing app type where available.
-5. Add products needed for Facebook Login, Instagram API, Pages API, and Threads API.
+5. Add products needed for Facebook Login, Instagram API, and Pages API.
 6. Add the production website URL in the app settings.
 7. Add this callback URL:
 
@@ -120,7 +117,6 @@ Also add:
 
 ```text
 https://your-public-site-url/api/oauth/facebook/callback
-https://your-public-site-url/api/oauth/threads/callback
 ```
 
 For local testing, also add:
@@ -128,7 +124,6 @@ For local testing, also add:
 ```text
 http://localhost:3000/api/oauth/instagram/callback
 http://localhost:3000/api/oauth/facebook/callback
-http://localhost:3000/api/oauth/threads/callback
 ```
 
 8. Request these permissions:
@@ -140,8 +135,6 @@ pages_manage_posts
 instagram_basic
 instagram_content_publish
 instagram_manage_comments
-threads_basic
-threads_content_publish
 ```
 
 9. Copy the App ID into `META_APP_ID`.
@@ -206,44 +199,6 @@ http://localhost:3000/api/oauth/linkedin/start
 ```
 
 LinkedIn may require review before organization posting is allowed.
-
-## Step 3: X / Twitter Setup
-
-X uses OAuth 2.0 with PKCE. The code currently blocks the redirect until the developer adds a session-backed PKCE verifier.
-
-1. Go to the [X Developer Portal](https://developer.x.com/).
-2. Create a project and app.
-3. Enable OAuth 2.0.
-4. Add this callback URL:
-
-```text
-https://your-public-site-url/api/oauth/twitter/callback
-```
-
-For local testing:
-
-```text
-http://localhost:3000/api/oauth/twitter/callback
-```
-
-5. Request or enable these scopes:
-
-```text
-tweet.read
-tweet.write
-users.read
-offline.access
-```
-
-6. Copy the Client ID into `X_CLIENT_ID`.
-7. Copy the Client Secret into `X_CLIENT_SECRET`.
-8. Ask the developer to add real PKCE storage before enabling:
-
-```text
-http://localhost:3000/api/oauth/twitter/start
-```
-
-Without PKCE, X will not safely complete the OAuth process.
 
 ## Step 4: TikTok Setup
 
@@ -367,7 +322,6 @@ Examples of what each adapter must do:
 
 - Instagram: create a media container, then publish that container.
 - Facebook Page: publish to the Page feed, photos, videos, or reels endpoint.
-- Threads: create a Threads media container, then publish it.
 - LinkedIn: create an organization post using the organization ID.
 - X: call the tweet creation endpoint with the authorized user token.
 - TikTok: initialize a direct post upload, then upload or provide media URL details.

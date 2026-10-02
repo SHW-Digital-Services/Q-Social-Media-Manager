@@ -18,9 +18,7 @@ import {
   X,
   Instagram,
   Linkedin,
-  Twitter,
   Video,
-  AtSign,
   Cloud,
   Share2
 } from 'lucide-react';
@@ -242,9 +240,7 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
     switch (plat) {
       case 'instagram': return <Instagram className="w-3 h-3 text-pink-600" />;
       case 'linkedin': return <Linkedin className="w-3 h-3 text-blue-600" />;
-      case 'twitter': return <Twitter className="w-3 h-3 text-slate-800" />;
       case 'tiktok': return <Video className="w-3 h-3 text-black" />;
-      case 'threads': return <AtSign className="w-3 h-3 text-slate-900" />;
       case 'bluesky': return <Cloud className="w-3 h-3 text-sky-500" />;
       case 'facebook': return <Share2 className="w-3 h-3 text-blue-700" />;
       default: return null;
@@ -376,8 +372,6 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
               <option value="all">All Channels</option>
               <option value="instagram">Instagram</option>
               <option value="linkedin">LinkedIn</option>
-              <option value="twitter">X (Twitter)</option>
-              <option value="threads">Threads</option>
               <option value="bluesky">Bluesky</option>
               <option value="tiktok">TikTok</option>
               <option value="facebook">Facebook</option>

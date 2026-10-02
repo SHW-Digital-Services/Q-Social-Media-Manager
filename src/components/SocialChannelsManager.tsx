@@ -166,7 +166,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
           </h2>
 
           <p className="text-sm text-slate-300 leading-relaxed">
-            Sign in to supported social networks in one click. Broadcast approved posts simultaneously to Instagram, Threads, X, LinkedIn, TikTok, and Bluesky once their server-side provider setup is enabled.
+            Sign in to supported social networks in one click. Broadcast approved posts simultaneously to Instagram, Facebook, LinkedIn, TikTok, and Bluesky once their server-side provider setup is enabled.
           </p>
 
           <div className="pt-2 flex flex-wrap items-center gap-3">
@@ -316,7 +316,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
               <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
                 <div className="text-[11px] text-slate-500 font-semibold flex items-center justify-between">
                   <span>Authorized Permissions:</span>
-                  <span className="font-mono text-[10px] text-slate-400">OAuth 2.0 PKCE</span>
+                  <span className="font-mono text-[10px] text-slate-400">OAuth 2.0</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {conn.scopes.map((s, idx) => (

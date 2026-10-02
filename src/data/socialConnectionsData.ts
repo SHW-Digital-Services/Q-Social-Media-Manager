@@ -15,32 +15,6 @@ export const INITIAL_SOCIAL_CONNECTIONS: SocialAccountConnection[] = [
     apiHealth: 'disconnected'
   },
   {
-    id: 'conn-threads',
-    platform: 'threads',
-    platformName: 'Threads',
-    accountHandle: '@q_intelligence',
-    displayName: 'Q Intelligence',
-    avatarUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=150&q=80',
-    accountType: 'organization',
-    isConnected: false,
-    scopes: ['threads_basic', 'threads_content_publish', 'threads_read_replies'],
-    webhookActive: false,
-    apiHealth: 'disconnected'
-  },
-  {
-    id: 'conn-twitter',
-    platform: 'twitter',
-    platformName: 'X (formerly Twitter)',
-    accountHandle: '@Q_Intelligence',
-    displayName: 'Q Intelligence Global',
-    avatarUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=150&q=80',
-    accountType: 'organization',
-    isConnected: false,
-    scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
-    webhookActive: false,
-    apiHealth: 'disconnected'
-  },
-  {
     id: 'conn-linkedin',
     platform: 'linkedin',
     platformName: 'LinkedIn Organization',
