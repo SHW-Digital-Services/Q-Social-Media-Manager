@@ -270,6 +270,12 @@ function buildOAuthStartResult(platform: string, req: express.Request): OAuthSta
     params.set('force_authentication', '1');
   }
 
+  if (provider === 'facebook' && process.env.META_LOGIN_CONFIG_ID) {
+    params.set('config_id', process.env.META_LOGIN_CONFIG_ID);
+    // Business Login configurations define the permissions and asset selection.
+    params.delete('scope');
+  }
+
   return {
     status: 200,
     authUrl: `${setup.authUrl}?${params.toString()}`,
