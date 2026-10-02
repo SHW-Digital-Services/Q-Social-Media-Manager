@@ -1,7 +1,6 @@
 import express from 'express';
 import path from 'path';
 import crypto from 'crypto';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 
@@ -923,8 +922,17 @@ Guidelines to apply:
     res.json({ success: true, assetId, totalVersions: updated.length, version });
   });
 
-  // Vite middleware or static serving
+  // Vercel serves the frontend separately; this function handles API requests only.
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'API route not found.' });
+  });
+
+  // Vite middleware or static serving for the standalone server.
+  if (process.env.VERCEL) {
+    return app;
+  }
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -960,4 +968,3 @@ if (!process.env.VERCEL) {
     });
   });
 }
-
