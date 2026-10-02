@@ -58,6 +58,8 @@ The `/api/:path*` rewrite in `vercel.json` must come before the frontend fallbac
 
 For `social.q-ai.online`, set `APP_URL=https://social.q-ai.online` and configure `INSTAGRAM_APP_ID` and `INSTAGRAM_APP_SECRET` in the Vercel Production environment. Register `https://social.q-ai.online/api/oauth/instagram/callback` as an allowed redirect URI in the Instagram developer app.
 
+Use the **Instagram App ID** and **Instagram App Secret** from **Instagram → API setup with Instagram login** in Meta for Developers. The parent Meta app ID and secret are different credentials; using them with Instagram Login can produce **Invalid platform app** before the callback. This flow does not fall back to `META_APP_ID` or `META_APP_SECRET`. After correcting the production credentials, redeploy and verify the `client_id` in `/api/oauth/instagram/start-url` matches the Instagram App ID. The callback exchanges the code at `https://api.instagram.com/oauth/access_token`.
+
 After deployment, open `/api/health`: it must return JSON with `status: "ok"`. `/api/oauth/instagram/start-url` must return JSON containing an Instagram authorization URL, or a JSON setup error identifying missing variables. If either returns the frontend HTML, check that the deployed commit includes the API function and routing configuration.
 
 Copy `.env.example` to `.env.local` for local testing. Fill in only the values you have created through the official developer dashboards.

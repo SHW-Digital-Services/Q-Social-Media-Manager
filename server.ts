@@ -82,9 +82,9 @@ const OAUTH_SETUP: Record<string, {
   instagram: {
     label: 'Instagram',
     authUrl: 'https://www.instagram.com/oauth/authorize',
-    tokenUrl: 'https://graph.instagram.com/oauth/access_token',
-    clientIdEnv: ['INSTAGRAM_APP_ID', 'META_APP_ID'],
-    clientSecretEnv: ['INSTAGRAM_APP_SECRET', 'META_APP_SECRET'],
+    tokenUrl: 'https://api.instagram.com/oauth/access_token',
+    clientIdEnv: 'INSTAGRAM_APP_ID',
+    clientSecretEnv: 'INSTAGRAM_APP_SECRET',
     scopes: [
       'instagram_business_basic',
       'instagram_business_content_publish',
@@ -261,9 +261,14 @@ function buildOAuthStartResult(platform: string, req: express.Request): OAuthSta
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: setup.scopes.join(' '),
+    scope: setup.scopes.join(provider === 'instagram' ? ',' : ' '),
     state,
   });
+
+  if (provider === 'instagram') {
+    params.set('enable_fb_login', '0');
+    params.set('force_authentication', '1');
+  }
 
   return {
     status: 200,
