@@ -1,7 +1,6 @@
 import { SocialPlatform } from '../types';
 
 const OAUTH_SUPPORTED_PLATFORMS = new Set<SocialPlatform>([
-  'instagram',
   'facebook',
   'linkedin',
   'tiktok',
@@ -16,7 +15,6 @@ type OAuthStartUrlResponse = {
 
 export function getSocialPlatformLabel(platform: string): string {
   const labels: Record<string, string> = {
-    instagram: 'Instagram',
     facebook: 'Facebook',
     linkedin: 'LinkedIn',
     tiktok: 'TikTok',
@@ -78,7 +76,7 @@ export async function startOneClickSocialSignIn(platform: SocialPlatform): Promi
 
 
 export async function disconnectSocialSignIn(platform: SocialPlatform): Promise<void> {
-  if (!OAUTH_SUPPORTED_PLATFORMS.has(platform)) return;
+  if (!OAUTH_SUPPORTED_PLATFORMS.has(platform) && platform !== 'website') return;
   const response = await fetch(`/api/social/${platform}/disconnect`, { method: 'POST' });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));

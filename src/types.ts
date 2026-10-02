@@ -7,7 +7,6 @@ export type PostStatus =
   | 'published';
 
 export type SocialPlatform = 
-  | 'instagram' 
   | 'linkedin' 
   | 'tiktok' 
   | 'bluesky' 

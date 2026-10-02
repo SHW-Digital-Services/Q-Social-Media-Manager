@@ -51,10 +51,10 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
   const [title, setTitle] = useState(initialPost?.title || '');
   const [content, setContent] = useState(initialPost?.content || '');
   const [selectedPlatforms, setSelectedPlatforms] = useState<SocialPlatform[]>(
-    initialPost?.platforms || ['instagram', 'facebook']
+    initialPost?.platforms || ['linkedin', 'facebook']
   );
   const hasWebsiteTarget = selectedPlatforms.includes('website');
-  const [previewPlatform, setPreviewPlatform] = useState<SocialPlatform>('instagram');
+  const [previewPlatform, setPreviewPlatform] = useState<SocialPlatform>('linkedin');
   const [mediaUrls, setMediaUrls] = useState<string[]>(initialPost?.mediaUrls || [Q_LOGO_URL]);
   const [campaign, setCampaign] = useState(initialPost?.campaign || 'General Wellbeing 2026');
   const [scheduledDateTime, setScheduledDateTime] = useState(
@@ -209,7 +209,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
     }
   };
 
-  const currentPlatformSpec = PLATFORM_SPECS[previewPlatform] || PLATFORM_SPECS.instagram;
+  const currentPlatformSpec = PLATFORM_SPECS[previewPlatform] || PLATFORM_SPECS.linkedin;
   const currentChars = content.length + tags.join(' ').length + (tags.length > 0 ? 1 : 0);
   const isOverLimit = currentChars > currentPlatformSpec.maxChars;
 
@@ -698,67 +698,6 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
         {/* Dynamic Platform Card Mockup */}
         <div className="bg-slate-900/5 rounded-3xl p-4 sm:p-6 border border-slate-200/80 flex items-center justify-center">
           
-          {/* Instagram Phone Mockup */}
-          {previewPlatform === 'instagram' && (
-            <div className="w-full max-w-sm bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden text-slate-900 font-sans">
-              {/* Header */}
-              <div className="p-3.5 flex items-center justify-between border-b border-slate-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-[#020617] border border-purple-500/40 p-0.5 overflow-hidden flex items-center justify-center">
-                    <QLogo className="w-full h-full object-contain" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold leading-none">qintelligence.app</div>
-                    <div className="text-[10px] text-slate-500 font-mono">LGBTQ+ Wellbeing</div>
-                  </div>
-                </div>
-                <span className="text-xs text-slate-400 font-bold">•••</span>
-              </div>
-
-              {/* Media Graphic */}
-              <div className="w-full aspect-square bg-cosmic-gradient relative overflow-hidden flex items-center justify-center">
-                {mediaUrls[0] ? (
-                  <img src={mediaUrls[0]} alt="Post Visual" className="w-full h-full object-contain p-4" />
-                ) : (
-                  <div className="text-center p-6 text-white space-y-2">
-                    <div className="w-16 h-16 rounded-full bg-white/10 mx-auto flex items-center justify-center p-2">
-                      <QLogo className="w-12 h-12 object-contain" glow={true} />
-                    </div>
-                    <p className="text-sm font-display font-bold">Q Intelligence</p>
-                  </div>
-                )}
-                {/* Pride Topline in mockup */}
-                <div className="absolute top-0 inset-x-0 h-1 bg-pride-spectrum"></div>
-              </div>
-
-              {/* Engagement icons */}
-              <div className="p-3.5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <span className="text-rose-500 text-sm font-bold">❤️ 1,248</span>
-                    <span className="text-sm">💬 84</span>
-                    <span className="text-sm">↗️</span>
-                  </div>
-                  <span className="text-sm">🔖</span>
-                </div>
-
-                {/* Caption */}
-                <div className="text-xs leading-relaxed">
-                  <span className="font-bold mr-1.5">qintelligence.app</span>
-                  <span>{content || "Hi there. We're here for you—always."}</span>
-                  {tags.length > 0 && (
-                    <div className="text-purple-600 mt-1 font-mono text-[11px]">
-                      {tags.join(' ')}
-                    </div>
-                  )}
-                </div>
-                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-mono pt-1">
-                  Scheduled for {new Date(scheduledDateTime).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* LinkedIn Mockup */}
           {previewPlatform === 'linkedin' && (
             <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-md p-4 text-slate-900 space-y-3 font-sans">
@@ -767,9 +706,9 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
                   <QLogo className="w-full h-full object-contain" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold">Q Intelligence</div>
+                  <div className="text-xs font-bold">{currentUser?.name || 'Your LinkedIn profile'}</div>
                   <div className="text-[10px] text-slate-500">
-                    4,820 followers • 2h • 🌐
+                    Personal profile • 🌐
                   </div>
                 </div>
               </div>
@@ -835,7 +774,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
                 </div>
                 <div className="bg-white border border-slate-200 px-3 py-0.5 rounded-md text-[10px] font-mono text-slate-600 flex items-center gap-1">
                   <Lock className="w-2.5 h-2.5 text-emerald-600" />
-                  <span>https://q-ai.online/journal/{title ? title.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'wellbeing-update'}</span>
+                  <span>https://www.q-ai.online/news</span>
                 </div>
                 <div className="w-8"></div>
               </div>
@@ -848,7 +787,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
                   </div>
                   <div>
                     <div className="text-xs font-bold font-display leading-none">Q INTELLIGENCE</div>
-                    <div className="text-[9px] text-purple-300 font-mono">Official Community Journal</div>
+                    <div className="text-[9px] text-purple-300 font-mono">News & Updates</div>
                   </div>
                 </div>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-900/60 border border-purple-500/40 text-purple-200">

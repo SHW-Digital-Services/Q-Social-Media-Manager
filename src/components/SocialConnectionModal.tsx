@@ -1,3 +1,5 @@
+import { WebsiteConnectionForm } from './WebsiteConnectionForm';
+import { websiteRequest } from '../utils/website';
 import { BlueskyConnectionForm } from './BlueskyConnectionForm';
 import { blueskyRequest } from '../utils/bluesky';
 import React, { useState } from 'react';
@@ -63,7 +65,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
   });
 
   const handleStartConnect = async (conn: SocialAccountConnection) => {
-    if (conn.platform === 'bluesky') {
+    if (conn.platform === 'bluesky' || conn.platform === 'website') {
       setConnectingPlatform(conn);
       return;
     }
@@ -153,6 +155,15 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
 
   const handleTestPing = async (conn: SocialAccountConnection) => {
     setTestingPingId(conn.id);
+    if (conn.platform === 'website' || conn.platform === 'linkedin') {
+      const started = performance.now();
+      try { if (conn.platform === 'website') await websiteRequest('check');
+        else { const response = await fetch('/api/linkedin/check', { method: 'POST' }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'LinkedIn connection check failed.'); } const ms = Math.round(performance.now() - started); setPingResults(prev => ({ ...prev, [conn.id]: { ms, status: 'ok', timestamp: 'Just now' } })); onShowToast(`${conn.platformName} connection verified: ${ms}ms.`); }
+      catch (error) { onShowToast((error as Error).message, 'warning'); }
+      finally { setTestingPingId(null); }
+      return;
+    }
+
     if (conn.platform === 'bluesky') {
       const started = performance.now();
       try {
@@ -349,7 +360,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
                         className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs hover:shadow transition-all flex items-center gap-1.5 cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>{authorizingConnectionId === conn.id ? 'Opening...' : conn.platform === 'bluesky' ? 'Connect' : 'Sign in'}</span>
+                        <span>{authorizingConnectionId === conn.id ? 'Opening...' : (conn.platform === 'bluesky' || conn.platform === 'website') ? 'Connect' : 'Sign in'}</span>
                       </button>
                     )}
                   </div>
@@ -399,7 +410,7 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
                     Connect {connectingPlatform.platformName}
                   </h3>
                   <span className="text-[10px] text-purple-600 font-mono">
-                    {connectingPlatform.requiresOwner ? 'Owner Direct Publishing Authorization' : connectingPlatform.platform === 'bluesky' ? 'Bluesky app password' : 'OAuth 2.0 Secure Grant'}
+                    {connectingPlatform.platform === 'website' ? 'Website publishing token' : connectingPlatform.requiresOwner ? 'Owner Direct Publishing Authorization' : connectingPlatform.platform === 'bluesky' ? 'Bluesky app password' : 'OAuth 2.0 Secure Grant'}
                   </span>
                 </div>
               </div>
@@ -418,6 +429,14 @@ export const SocialConnectionModal: React.FC<SocialConnectionModalProps> = ({
                   onUpdateConnections(connections.map(c => c.id === connectingPlatform.id ? { ...c, accountHandle: `@${handle}`, isConnected: true, connectedAt, apiHealth: 'healthy', webhookActive: false, tokenExpiresAt: undefined } : c));
                   setConnectingPlatform(null);
                   onShowToast(`Bluesky connected as @${handle}.`);
+                }}
+              />
+            ) : connectingPlatform.platform === 'website' ? (
+              <WebsiteConnectionForm onCancel={() => setConnectingPlatform(null)}
+                onConnected={(name, connectedAt) => {
+                  onUpdateConnections(connections.map(c => c.id === connectingPlatform.id ? { ...c, accountHandle: name, isConnected: true, connectedAt, apiHealth: 'healthy', webhookActive: false, tokenExpiresAt: undefined } : c));
+                  setConnectingPlatform(null);
+                  onShowToast('Q website connected. Posts will appear on its News page.');
                 }}
               />
             ) : (
