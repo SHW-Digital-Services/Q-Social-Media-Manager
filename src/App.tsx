@@ -1,3 +1,4 @@
+import { blueskyRequest } from './utils/bluesky';
 import React, { useState, useEffect } from 'react';
 import { PostItem, PostStatus, PostVersion, SocialAccountConnection } from './types';
 import { MOCK_POSTS, Q_LOGO_URL } from './data/brandData';
@@ -35,6 +36,18 @@ export default function App() {
   // Social Media Connections state
   const [socialConnections, setSocialConnections] = useState<SocialAccountConnection[]>(INITIAL_SOCIAL_CONNECTIONS);
   const [showSocialModal, setShowSocialModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    let active = true;
+    blueskyRequest('status').then(status => {
+      if (!active) return;
+      setSocialConnections(previous => previous.map(connection => connection.platform === 'bluesky'
+        ? { ...connection, isConnected: status.connected, accountHandle: status.handle ? `@${status.handle}` : connection.accountHandle, connectedAt: status.connectedAt, apiHealth: status.connected ? 'healthy' : 'disconnected', webhookActive: false }
+        : connection));
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
 
   // Supabase Staff Authentication state (Starts with Login Page to fulfill login-only page requirement)
   const [currentUser, setCurrentUser] = useState<StaffUser | null>(() => {
