@@ -83,8 +83,8 @@ const OAUTH_SETUP: Record<string, {
     label: 'Instagram',
     authUrl: 'https://www.instagram.com/oauth/authorize',
     tokenUrl: 'https://api.instagram.com/oauth/access_token',
-    clientIdEnv: ['INSTAGRAM_APP_ID', 'META_APP_ID'],
-    clientSecretEnv: ['INSTAGRAM_APP_SECRET', 'META_APP_SECRET'],
+    clientIdEnv: 'INSTAGRAM_APP_ID',
+    clientSecretEnv: 'INSTAGRAM_APP_SECRET',
     scopes: [
       'instagram_business_basic',
       'instagram_business_content_publish',
