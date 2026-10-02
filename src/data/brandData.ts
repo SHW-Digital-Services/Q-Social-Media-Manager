@@ -386,7 +386,7 @@ export const INITIAL_POSTS: PostItem[] = [
     id: 'post-101',
     title: 'Weekly Wellbeing Check-in: Creating Gentle Space',
     content: "Hi there. However your week is unfolding, remember that your feelings are valid. 💜 We designed Q to be your private space for LGBTQ+ wellbeing—where you set the pace, and there is never any pressure to have all the answers. Take a breath with us today. I'm here for you—always.",
-    platforms: ['instagram', 'threads', 'bluesky'],
+    platforms: ['instagram', 'bluesky'],
     status: 'pending_approval',
     scheduledFor: '2026-09-21T15:00:00.000Z',
     author: {
@@ -444,7 +444,7 @@ export const INITIAL_POSTS: PostItem[] = [
     id: 'post-102',
     title: '24/7 Crisis Resource Spotlight (Weekend Coverage)',
     content: "If you're feeling overwhelmed or navigating isolation, you are not alone. Free, confidential support is available 24/7: 📞 Call 988 (Press 3 for LGBTQ+ specialized youth line) or text START to 678-678 (The Trevor Project). You matter deeply. Reach out whenever you need.",
-    platforms: ['instagram', 'twitter', 'linkedin', 'facebook'],
+    platforms: ['instagram', 'linkedin', 'facebook'],
     status: 'approved',
     scheduledFor: '2026-09-20T22:00:00.000Z',
     author: {
@@ -502,7 +502,7 @@ export const INITIAL_POSTS: PostItem[] = [
     id: 'post-103',
     title: 'Privacy Transparency Report: How On-Device AI Shields You',
     content: "How does Q protect your reflection? We believe privacy is a core right, not an afterthought. With our Local AI architecture, your thoughts process right on your device. Zero ad tracking. Zero commercial surveillance. Your journey belongs only to you. Read our full transparency breakdown at the link in bio.",
-    platforms: ['linkedin', 'twitter', 'bluesky'],
+    platforms: ['linkedin', 'bluesky'],
     status: 'scheduled',
     scheduledFor: '2026-09-22T14:00:00.000Z',
     author: {
@@ -549,7 +549,7 @@ export const INITIAL_POSTS: PostItem[] = [
     id: 'post-104',
     title: 'National Coming Out Day Preview (Tone Revision Needed)',
     content: "When you finally decide to come out to your parents this month, don't let fear paralyze you. Sufferers of closeted anxiety must admit their true self. Join our webinar to be cured of self-doubt.",
-    platforms: ['instagram', 'twitter'],
+    platforms: ['instagram'],
     status: 'changes_requested',
     scheduledFor: null,
     author: {
@@ -621,7 +621,7 @@ export const INITIAL_POSTS: PostItem[] = [
     id: 'post-105',
     title: 'Pride & Joy Community Spotlight: Finding Chosen Family',
     content: "Family isn't only who we are born to—it's who embraces us unconditionally. To every member of our community cultivating spaces of warmth, laughter, and belonging: we see you and we honor you. What does chosen family feel like to you? Share in the comments if you feel comfortable. 🌈✨",
-    platforms: ['instagram', 'tiktok', 'threads', 'facebook'],
+    platforms: ['instagram', 'tiktok', 'facebook'],
     status: 'published',
     scheduledFor: '2026-09-18T16:00:00.000Z',
     publishedAt: '2026-09-18T16:00:00.000Z',
@@ -734,22 +734,6 @@ export const PLATFORM_SPECS: Record<string, { name: string; maxChars: number; op
     icon: 'Linkedin',
     brandColor: '#0A66C2',
     handleFormat: 'Q Intelligence Organization'
-  },
-  twitter: {
-    name: 'X (Twitter)',
-    maxChars: 280,
-    optimalRatio: '16:9',
-    icon: 'Twitter',
-    brandColor: '#0F1419',
-    handleFormat: '@QIntelligence'
-  },
-  threads: {
-    name: 'Threads',
-    maxChars: 500,
-    optimalRatio: '1:1 or 9:16',
-    icon: 'AtSign',
-    brandColor: '#000000',
-    handleFormat: '@qintelligence.app'
   },
   tiktok: {
     name: 'TikTok',

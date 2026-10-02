@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import crypto from 'crypto';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 
@@ -12,9 +11,7 @@ const PORT = 3000;
 type SocialPlatform =
   | 'instagram'
   | 'linkedin'
-  | 'twitter'
   | 'tiktok'
-  | 'threads'
   | 'bluesky'
   | 'facebook'
   | 'website';
@@ -38,26 +35,16 @@ type PublishResult = {
   setupStep?: string;
 };
 
-type PkceRecord = {
-  codeVerifier: string;
-  createdAt: number;
-  platform: string;
-};
-
 const SUPPORTED_SOCIAL_PLATFORMS: SocialPlatform[] = [
   'instagram',
-  'threads',
   'facebook',
   'linkedin',
-  'twitter',
   'tiktok',
   'bluesky',
   'website',
 ];
 
 const inMemoryOAuthTokens = new Map<string, any>();
-const pkceStore = new Map<string, PkceRecord>();
-const PKCE_TTL_MS = 10 * 60 * 1000;
 
 const OAUTH_SETUP: Record<string, {
   label: string;
@@ -91,17 +78,6 @@ const OAUTH_SETUP: Record<string, {
       'instagram_business_manage_comments',
     ],
   },
-  threads: {
-    label: 'Threads',
-    authUrl: 'https://threads.net/oauth/authorize',
-    tokenUrl: 'https://graph.threads.net/oauth/access_token',
-    clientIdEnv: ['THREADS_APP_ID', 'META_APP_ID'],
-    clientSecretEnv: ['THREADS_APP_SECRET', 'META_APP_SECRET'],
-    scopes: [
-      'threads_basic',
-      'threads_content_publish',
-    ],
-  },
   linkedin: {
     label: 'LinkedIn',
     authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
@@ -109,14 +85,6 @@ const OAUTH_SETUP: Record<string, {
     clientIdEnv: 'LINKEDIN_CLIENT_ID',
     clientSecretEnv: 'LINKEDIN_CLIENT_SECRET',
     scopes: ['openid', 'profile', 'w_member_social', 'w_organization_social', 'r_organization_social'],
-  },
-  twitter: {
-    label: 'X (Twitter)',
-    authUrl: 'https://twitter.com/i/oauth2/authorize',
-    tokenUrl: 'https://api.twitter.com/2/oauth2/token',
-    clientIdEnv: 'X_CLIENT_ID',
-    clientSecretEnv: 'X_CLIENT_SECRET',
-    scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
   },
   tiktok: {
     label: 'TikTok',
@@ -153,37 +121,6 @@ function getConfiguredToken(platform: SocialPlatform): any {
   return inMemoryOAuthTokens.get(platform) || inMemoryOAuthTokens.get(provider);
 }
 
-function base64UrlEncode(buffer: Buffer): string {
-  return buffer
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/g, '');
-}
-
-function generateCodeVerifier(): string {
-  return base64UrlEncode(crypto.randomBytes(64));
-}
-
-function generateCodeChallenge(codeVerifier: string): string {
-  return base64UrlEncode(
-    crypto.createHash('sha256').update(codeVerifier).digest()
-  );
-}
-
-function generateOAuthState(): string {
-  return crypto.randomUUID();
-}
-
-function cleanupExpiredPkceRecords() {
-  const now = Date.now();
-  for (const [state, record] of pkceStore.entries()) {
-    if (now - record.createdAt > PKCE_TTL_MS) {
-      pkceStore.delete(state);
-    }
-  }
-}
-
 type OAuthStartResult = {
   status: number;
   authUrl?: string;
@@ -217,36 +154,6 @@ function buildOAuthStartResult(platform: string, req: express.Request): OAuthSta
         ].filter(Boolean),
         nextStep: 'Ask the app owner to add the provider app configuration once in the server environment, then restart the server.',
       },
-    };
-  }
-
-  if (provider === 'twitter') {
-    cleanupExpiredPkceRecords();
-
-    const codeVerifier = generateCodeVerifier();
-    const codeChallenge = generateCodeChallenge(codeVerifier);
-    const state = generateOAuthState();
-
-    pkceStore.set(state, {
-      codeVerifier,
-      createdAt: Date.now(),
-      platform,
-    });
-
-    const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: 'code',
-      scope: setup.scopes.join(' '),
-      state,
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256',
-    });
-
-    return {
-      status: 200,
-      authUrl: `${setup.authUrl}?${params.toString()}`,
     };
   }
 
@@ -483,67 +390,6 @@ async function createApp() {
             !clientSecret ? formatEnvNames(setup.clientSecretEnv) : null,
           ].filter(Boolean),
         });
-      }
-
-      if (provider === 'twitter') {
-        cleanupExpiredPkceRecords();
-
-        const returnedState = typeof req.query.state === 'string' ? req.query.state : '';
-        const stored = pkceStore.get(returnedState);
-
-        if (!returnedState || !stored) {
-          return res.status(400).json({
-            error: 'Invalid or expired X OAuth state. Please start the X connection again.',
-          });
-        }
-
-        if (stored.platform !== platform) {
-          pkceStore.delete(returnedState);
-          return res.status(400).json({
-            error: 'X OAuth state did not match the requested platform.',
-          });
-        }
-
-        pkceStore.delete(returnedState);
-
-        const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;
-        const body = new URLSearchParams({
-          grant_type: 'authorization_code',
-          code,
-          redirect_uri: redirectUri,
-          client_id: clientId,
-          code_verifier: stored.codeVerifier,
-        });
-        const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-
-        const tokenResponse = await fetch(setup.tokenUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Authorization: `Basic ${basicAuth}`,
-          },
-          body,
-        });
-        const tokenBody = await tokenResponse.json().catch(() => ({}));
-
-        if (!tokenResponse.ok) {
-          return res.status(tokenResponse.status).json({
-            error: 'X token exchange failed.',
-            providerResponse: tokenBody,
-          });
-        }
-
-        inMemoryOAuthTokens.set(platform, {
-          ...tokenBody,
-          provider,
-          platform,
-          connectedAt: new Date().toISOString(),
-        });
-
-        const callbackUrl = new URL(getAppUrl(req));
-        callbackUrl.searchParams.set('oauth', 'success');
-        callbackUrl.searchParams.set('platform', platform);
-        return res.redirect(callbackUrl.toString());
       }
 
       const redirectUri = `${getAppUrl(req)}/api/oauth/${platform}/callback`;

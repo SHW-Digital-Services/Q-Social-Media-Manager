@@ -9,9 +9,7 @@ export type PostStatus =
 export type SocialPlatform = 
   | 'instagram' 
   | 'linkedin' 
-  | 'twitter' 
   | 'tiktok' 
-  | 'threads' 
   | 'bluesky' 
   | 'facebook'
   | 'website';

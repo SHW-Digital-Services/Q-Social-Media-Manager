@@ -757,7 +757,7 @@ export const DesignTemplatesStudio: React.FC<DesignTemplatesStudioProps> = ({
           </div>
 
           <p className="mt-4 text-[11px] text-slate-400 font-mono text-center">
-            Zero white background on Q Logomark • Pixel-perfect for Instagram, LinkedIn, and Threads
+            Zero white background on Q Logomark • Pixel-perfect for Instagram, LinkedIn, and Facebook
           </p>
         </div>
       </div>
@@ -852,7 +852,7 @@ export const DesignTemplatesStudio: React.FC<DesignTemplatesStudioProps> = ({
                     onChange={(e) => setNewTplAspect(e.target.value as any)}
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 font-mono"
                   >
-                    <option value="1:1">1:1 Square (Instagram, X, LinkedIn)</option>
+                    <option value="1:1">1:1 Square (Instagram, Facebook, LinkedIn)</option>
                     <option value="4:5">4:5 Portrait Feed</option>
                     <option value="16:9">16:9 Landscape Banner</option>
                     <option value="9:16">9:16 Story / Reel</option>
