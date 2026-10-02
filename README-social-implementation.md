@@ -52,6 +52,8 @@ APP_URL=https://your-public-site-url
 
 ## Environment Variables
 
+For Facebook Login for Business, set `META_LOGIN_CONFIG_ID` to the configuration ID from the Facebook app's **Facebook Login for Business → Configurations** page. For the current Q configuration, this is `4410601669194113`, belonging to app `1789322359060686`. Set `META_APP_ID` and `META_APP_SECRET` to that app's credentials and register `https://social.q-ai.online/api/oauth/facebook/callback`. When a configuration ID is set, the authorization URL uses `config_id` and lets the configuration define permissions rather than sending `scope`. Redeploy after changing production environment variables.
+
 ### Vercel deployment
 
 The `/api/:path*` rewrite in `vercel.json` must come before the frontend fallback and target `/api/index`, the Express serverless entry point. Environment variables alone do not enable API routing. Redeploy after changing routing or production environment variables.
