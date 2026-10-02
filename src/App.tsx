@@ -23,6 +23,7 @@ import { AUTHORIZED_STAFF_ACCOUNTS, StaffUser } from './lib/supabase';
 import { getSocialPlatformLabel } from './utils/socialOAuth';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { Analytics } from '@vercel/analytics/react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('queue');
@@ -991,7 +992,9 @@ export default function App() {
         </div>
       </footer>
 
+      {/* Vercel Web Analytics */}
+      <Analytics />
+
     </div>
   );
 }
-
