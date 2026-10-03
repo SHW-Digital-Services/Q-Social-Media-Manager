@@ -53,7 +53,8 @@ async function xrpc(service: string, method: string, body?: unknown, token?: str
   });
   const data = await response.json().catch(() => ({})) as any;
   if (!response.ok) {
-    const error = new Error(data.error === 'AuthenticationRequired' || data.error === 'InvalidToken' ? 'Bluesky rejected this session. Reconnect using an app password.' : `Bluesky request failed (${response.status}): ${data.error || 'provider error'}${typeof data.message === 'string' ? `: ${data.message.slice(0, 500)}` : ''}`) as Error & { code?: string };
+    console.error(JSON.stringify({ event: 'bluesky_request_failed', method, status: response.status, code: data.error || 'provider_error', message: typeof data.message === 'string' ? data.message.slice(0, 500) : undefined }));
+    const error = new Error(data.error === 'AuthenticationRequired' || data.error === 'InvalidToken' ? 'Bluesky rejected this session. Reconnect using an app password.' : `Bluesky ${method.split('.').at(-1)} failed (${response.status}): ${data.error || 'provider error'}${typeof data.message === 'string' ? `: ${data.message.slice(0, 500)}` : ''}`) as Error & { code?: string };
     error.code = data.error;
     throw error;
   }
@@ -131,7 +132,10 @@ export async function publishBluesky(req: Request, res: Response, payload: { con
     const { bytes, mime } = await loadPublishingImage(value);
     const response = await fetch(`${session.service}/xrpc/com.atproto.repo.uploadBlob`, { method: 'POST', headers: { Authorization: `Bearer ${session.accessJwt}`, 'Content-Type': mime }, body: new Uint8Array(bytes), signal: AbortSignal.timeout(20000), redirect: 'error' });
     const data = await response.json() as any;
-    if (!response.ok || !data.blob) throw new Error('Bluesky image upload failed. The post was not published.');
+    if (!response.ok || !data.blob) {
+      console.error(JSON.stringify({ event: 'bluesky_request_failed', method: 'com.atproto.repo.uploadBlob', status: response.status, code: data.error || 'missing_blob', mime, imageBytes: bytes.length, message: typeof data.message === 'string' ? data.message.slice(0, 500) : undefined }));
+      throw new Error(`Bluesky image upload failed (${response.status}): ${data.error || 'missing blob'}${typeof data.message === 'string' ? `: ${data.message.slice(0, 500)}` : ''}. The post was not published.`);
+    }
     images.push({ alt: (payload.title || '').slice(0, 1000), image: data.blob });
   }
   const record = { $type: 'app.bsky.feed.post', text, createdAt: new Date().toISOString(), ...(images.length ? { embed: { $type: 'app.bsky.embed.images', images } } : {}) };

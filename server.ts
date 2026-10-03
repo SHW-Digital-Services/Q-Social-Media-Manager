@@ -387,6 +387,7 @@ async function createApp() {
       const failed = results.filter(result => result.status !== 'published');
 
       if (failed.length > 0) {
+        console.error(JSON.stringify({ event: 'broadcast_failed', requestId: req.get('x-vercel-id'), publishedPlatforms: published.map(result => result.platform), failedPlatforms: failed.map(result => ({ platform: result.platform, status: result.status, message: result.message })) }));
         return res.status(failed.some(result => result.status === 'failed') ? 502 : 409).json({
           success: false,
           message: published.length > 0 ? 'Some channels published successfully; others failed.' : 'Publishing could not complete.',
