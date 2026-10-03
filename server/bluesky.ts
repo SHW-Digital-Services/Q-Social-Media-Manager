@@ -53,7 +53,7 @@ async function xrpc(service: string, method: string, body?: unknown, token?: str
   });
   const data = await response.json().catch(() => ({})) as any;
   if (!response.ok) {
-    const error = new Error(data.error === 'AuthenticationRequired' || data.error === 'InvalidToken' ? 'Bluesky rejected this session. Reconnect using an app password.' : `Bluesky request failed (${response.status}): ${data.error || 'provider error'}`) as Error & { code?: string };
+    const error = new Error(data.error === 'AuthenticationRequired' || data.error === 'InvalidToken' ? 'Bluesky rejected this session. Reconnect using an app password.' : `Bluesky request failed (${response.status}): ${data.error || 'provider error'}${typeof data.message === 'string' ? `: ${data.message.slice(0, 500)}` : ''}`) as Error & { code?: string };
     error.code = data.error;
     throw error;
   }
@@ -70,6 +70,8 @@ async function refresh(req: Request, res: Response) {
     if (!data.accessJwt || !data.refreshJwt || data.did !== session.did) throw new Error('Bluesky session renewal failed. Reconnect your account.');
     session.accessJwt = data.accessJwt;
     session.refreshJwt = data.refreshJwt;
+    const endpoint = data.didDoc?.service?.find((s: any) => s.type === 'AtprotoPersonalDataServer')?.serviceEndpoint;
+    if (endpoint) session.service = serviceUrl(endpoint);
     save(res, session);
   }
   return session;
@@ -116,6 +118,14 @@ export async function publishBluesky(req: Request, res: Response, payload: { con
   if ([...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].length > 300 || Buffer.byteLength(text) > 3000) throw new Error('Bluesky posts must be at most 300 characters. Shorten the text or tags.');
   if ((payload.mediaUrls?.length || 0) > 4) throw new Error('Bluesky accepts at most four images per post.');
   const session = await refresh(req, res);
+  // Old sessions may still point at the entryway rather than the account PDS.
+  if (session.service === 'https://bsky.social') {
+    const current = await xrpc(session.service, 'com.atproto.server.getSession', undefined, session.accessJwt);
+    const endpoint = current.didDoc?.service?.find((s: any) => s.type === 'AtprotoPersonalDataServer')?.serviceEndpoint;
+    if (!endpoint) throw new Error('Reconnect Bluesky to resolve your account publishing server.');
+    session.service = serviceUrl(endpoint);
+    save(res, session);
+  }
   const images = [];
   for (const value of payload.mediaUrls || []) {
     const { bytes, mime } = await loadPublishingImage(value);

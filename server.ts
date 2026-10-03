@@ -1,3 +1,4 @@
+import { publishFacebook } from './server/facebook.js';
 import { registerWebsiteRoutes, publishWebsite } from './server/website.js';
 import { startSocialState, consumeSocialState, saveSocialSession, getSocialSession, clearSocialSession, supportedSessionProvider } from './server/socialSessions.js';
 import { registerBlueskyRoutes, getBlueskySession, publishBluesky, isBlueskySameOrigin } from './server/bluesky.js';
@@ -167,6 +168,7 @@ async function publishToPlatform(platform: SocialPlatform, payload: PublishReque
     catch (error) { return { platform, status: 'failed', message: (error as Error).message }; }
   }
   if (platform === 'website') return publishWebsite(req, payload);
+  if (platform === 'facebook') return publishFacebook(req, payload);
   const token = getSocialSession(req, platform);
 
   if (!token) {

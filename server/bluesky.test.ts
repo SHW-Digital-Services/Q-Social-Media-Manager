@@ -24,7 +24,7 @@ test('Bluesky connection, encryption, refresh, publishing and disconnect', async
       if (failLogin) return new Response(JSON.stringify({ error: 'AuthenticationRequired' }), { status: 401 });
       return Response.json({ did, handle: 'test.bsky.social', accessJwt: jwt(staleToken ? 0 : Date.now() / 1000 + 3600), refreshJwt: 'private-refresh-token', didDoc: { service: [{ type: 'AtprotoPersonalDataServer', serviceEndpoint: evilService ? 'http://127.0.0.1' : 'https://test.host.bsky.network' }] } });
     }
-    if (url.endsWith('refreshSession')) return Response.json({ did, accessJwt: jwt(Date.now() / 1000 + 3600), refreshJwt: 'rotated-private-token' });
+    if (url.endsWith('refreshSession')) return Response.json({ did, accessJwt: jwt(Date.now() / 1000 + 3600), refreshJwt: 'rotated-private-token', didDoc: { service: [{ type: 'AtprotoPersonalDataServer', serviceEndpoint: 'https://updated.host.bsky.network' }] } });
     if (url.endsWith('getSession')) return Response.json({ did, handle: 'test.bsky.social' });
     if (url.endsWith('uploadBlob')) return failUpload ? Response.json({ error: 'InvalidBlob' }, { status: 400 }) : Response.json({ blob: { $type: 'blob', ref: { $link: 'image-cid' }, mimeType: 'image/png', size: 4 } });
     if (url.endsWith('createRecord')) return Response.json({ uri: `at://${did}/app.bsky.feed.post/record`, cid: 'post-cid' });
@@ -78,6 +78,7 @@ test('Bluesky connection, encryption, refresh, publishing and disconnect', async
     assert.equal(published.data.success, true);
     const record = calls.filter(c => c.url.endsWith('createRecord')).at(-1)!.body;
     assert.equal(record.repo, did);
+    assert.ok(calls.filter(c => c.url.endsWith('createRecord')).at(-1)!.url.startsWith('https://updated.host.bsky.network/'));
     assert.equal(record.record.embed.images.length, 1);
     assert.equal(record.record.text, 'Hello');
     assert.ok(published.data.results[0].remoteId.startsWith('at://'));

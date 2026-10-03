@@ -21,6 +21,7 @@ test('Removed providers are rejected and Q website publishing works through mana
     if (url.includes('/dms-uploads/')) return new Response('', { status: failImage ? 400 : 201 });
     if (url.includes('/rest/images/')) return Response.json({ status: 'AVAILABLE' });
     if (url.endsWith('/rest/posts')) return new Response('', { status: failPublish ? 403 : 201, headers: { 'x-restli-id': 'urn:li:share:123' } });
+    if (url.endsWith('/api/content/media')) return Response.json({ url: 'https://brnhalxydcakutxiregp.supabase.co/storage/v1/object/public/content-media/test.png' }, { status: 201 });
     if (url.endsWith('/api/content/publish')) return Response.json({ post: { id: 'news-123', slug: body.slug, published_at: new Date().toISOString() } }, { status: 201 });
     throw new Error(`Unexpected remote call: ${url}`);
   };
@@ -56,7 +57,8 @@ test('Removed providers are rejected and Q website publishing works through mana
     const news = calls.filter(c => c.url.endsWith('/api/content/publish')).at(-1)!.body;
     assert.equal(news.publish, true); assert.equal(news.contentType, 'news'); assert.equal(news.heroImageUrl, 'https://images.unsplash.com/test.png'); assert.deepEqual(news.tags, ['community']);
     assert.equal((await publish('website', [], 'Too short')).data.results[0].status, 'failed');
-    assert.equal((await publish('website', ['data:image/png;base64,dGVzdA=='])).data.results[0].status, 'failed');
+    assert.equal((await publish('website', ['data:image/png;base64,dGVzdA=='])).data.success, true);
+    assert.match(calls.filter(c => c.url.endsWith('/api/content/publish')).at(-1)!.body.heroImageUrl, /content-media/);
     assert.equal((await request('/api/website/connect', { token }, 'https://attacker.example')).response.status, 403);
     rejectWebsite = true; assert.equal((await request('/api/website/check', {})).response.status, 401);
     assert.equal((await request('/api/social/website/disconnect', {})).response.status, 200);
