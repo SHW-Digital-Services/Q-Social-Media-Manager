@@ -1,4 +1,3 @@
-import { publishLinkedIn, registerLinkedInRoutes } from './server/linkedin.js';
 import { registerWebsiteRoutes, publishWebsite } from './server/website.js';
 import { startSocialState, consumeSocialState, saveSocialSession, getSocialSession, clearSocialSession, supportedSessionProvider } from './server/socialSessions.js';
 import { registerBlueskyRoutes, getBlueskySession, publishBluesky, isBlueskySameOrigin } from './server/bluesky.js';
@@ -40,8 +39,6 @@ type PublishResult = {
 
 const SUPPORTED_SOCIAL_PLATFORMS: SocialPlatform[] = [
   'facebook',
-  'linkedin',
-  'tiktok',
   'bluesky',
   'website',
 ];
@@ -66,22 +63,6 @@ const OAUTH_SETUP: Record<string, {
       'pages_read_engagement',
       'pages_manage_posts',
     ],
-  },
-  linkedin: {
-    label: 'LinkedIn',
-    authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
-    tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
-    clientIdEnv: 'LINKEDIN_CLIENT_ID',
-    clientSecretEnv: 'LINKEDIN_CLIENT_SECRET',
-    scopes: ['openid', 'profile', 'w_member_social'],
-  },
-  tiktok: {
-    label: 'TikTok',
-    authUrl: 'https://www.tiktok.com/v2/auth/authorize/',
-    tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token/',
-    clientIdEnv: 'TIKTOK_CLIENT_KEY',
-    clientSecretEnv: 'TIKTOK_CLIENT_SECRET',
-    scopes: ['user.info.basic', 'video.upload', 'video.publish'],
   },
 };
 
@@ -197,9 +178,7 @@ async function publishToPlatform(platform: SocialPlatform, payload: PublishReque
     };
   }
 
-  if (platform === 'linkedin') {
-    return publishLinkedIn(payload, token);
-  }
+
 
   return {
     platform,
@@ -249,7 +228,7 @@ async function createApp() {
   app.use(express.json({ limit: '10mb' }));
   registerBlueskyRoutes(app);
   registerWebsiteRoutes(app);
-  registerLinkedInRoutes(app);
+
 
   // Health check
   app.get('/api/health', (req, res) => {
@@ -590,7 +569,7 @@ Return valid JSON adhering to the specified schema.
   // Rewrite in Q Intelligence Voice
   app.post('/api/compliance/rewrite', async (req, res) => {
     try {
-      const { text, style = 'Warm & Supportive', platform = 'LinkedIn' } = req.body;
+      const { text, style = 'Warm & Supportive', platform = 'Facebook' } = req.body;
       if (!text) {
         return res.status(400).json({ error: 'Text is required for rewrite.' });
       }

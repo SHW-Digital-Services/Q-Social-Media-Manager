@@ -113,7 +113,7 @@ export const CollaborationRoom: React.FC<CollaborationRoomProps> = ({
         sender: 'Marcus Vance',
         role: 'Creative Director',
         avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
-        message: 'The LinkedIn mockup looks pristine. The circular Q Logo badge has the exact 24px safe padding.'
+        message: 'The Facebook mockup looks pristine. The circular Q Logo badge has the exact 24px safe padding.'
       },
       {
         sender: 'Dr. Elena Rostova',

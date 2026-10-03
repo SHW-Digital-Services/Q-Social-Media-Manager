@@ -204,7 +204,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
           </h2>
 
           <p className="text-sm text-slate-300 leading-relaxed">
-            Sign in to supported social networks in one click. Broadcast approved posts simultaneously to Facebook, LinkedIn, TikTok, and Bluesky once their server-side provider setup is enabled.
+            Sign in to supported social networks in one click. Broadcast approved posts simultaneously to Facebook and Bluesky once their server-side provider setup is enabled.
           </p>
 
           <div className="pt-2 flex flex-wrap items-center gap-3">

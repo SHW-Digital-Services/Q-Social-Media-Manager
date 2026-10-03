@@ -51,10 +51,10 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
   const [title, setTitle] = useState(initialPost?.title || '');
   const [content, setContent] = useState(initialPost?.content || '');
   const [selectedPlatforms, setSelectedPlatforms] = useState<SocialPlatform[]>(
-    initialPost?.platforms || ['linkedin', 'facebook']
+    initialPost?.platforms || ['facebook']
   );
   const hasWebsiteTarget = selectedPlatforms.includes('website');
-  const [previewPlatform, setPreviewPlatform] = useState<SocialPlatform>('linkedin');
+  const [previewPlatform, setPreviewPlatform] = useState<SocialPlatform>('facebook');
   const [mediaUrls, setMediaUrls] = useState<string[]>(initialPost?.mediaUrls || [Q_LOGO_URL]);
   const [campaign, setCampaign] = useState(initialPost?.campaign || 'General Wellbeing 2026');
   const [scheduledDateTime, setScheduledDateTime] = useState(
@@ -209,7 +209,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
     }
   };
 
-  const currentPlatformSpec = PLATFORM_SPECS[previewPlatform] || PLATFORM_SPECS.linkedin;
+  const currentPlatformSpec = PLATFORM_SPECS[previewPlatform] || PLATFORM_SPECS.facebook;
   const currentChars = content.length + tags.join(' ').length + (tags.length > 0 ? 1 : 0);
   const isOverLimit = currentChars > currentPlatformSpec.maxChars;
 
@@ -698,45 +698,6 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
         {/* Dynamic Platform Card Mockup */}
         <div className="bg-slate-900/5 rounded-3xl p-4 sm:p-6 border border-slate-200/80 flex items-center justify-center">
           
-          {/* LinkedIn Mockup */}
-          {previewPlatform === 'linkedin' && (
-            <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-md p-4 text-slate-900 space-y-3 font-sans">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#020617] p-1 border border-purple-400 overflow-hidden flex items-center justify-center">
-                  <QLogo className="w-full h-full object-contain" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold">{currentUser?.name || 'Your LinkedIn profile'}</div>
-                  <div className="text-[10px] text-slate-500">
-                    Personal profile • 🌐
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-xs leading-relaxed text-slate-800">
-                {content || "How does Q protect your reflection? We believe privacy is a core right, not an afterthought."}
-              </p>
-
-              {tags.length > 0 && (
-                <div className="text-[11px] font-semibold text-blue-700">
-                  {tags.join(' ')}
-                </div>
-              )}
-
-              {mediaUrls[0] && (
-                <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video flex items-center justify-center">
-                  <img src={mediaUrls[0]} alt="Media" className="w-full h-full object-contain p-2" />
-                </div>
-              )}
-
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-semibold">
-                <span>👍 412 Likes</span>
-                <span>💬 28 Comments</span>
-                <span>🔁 64 Reposts</span>
-              </div>
-            </div>
-          )}
-
           {/* Facebook / Bluesky / TikTok Fallback Card */}
           {(previewPlatform === 'tiktok' || previewPlatform === 'bluesky' || previewPlatform === 'facebook') && (
             <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-md p-5 text-slate-900 space-y-3">

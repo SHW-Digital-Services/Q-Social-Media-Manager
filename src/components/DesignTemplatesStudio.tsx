@@ -557,7 +557,7 @@ export const DesignTemplatesStudio: React.FC<DesignTemplatesStudioProps> = ({
               </label>
               <div className="grid grid-cols-4 gap-2">
                 {[
-                  { id: '1:1', desc: 'Square (Insta / X / LinkedIn)' },
+                  { id: '1:1', desc: 'Square (Facebook / Bluesky)' },
                   { id: '4:5', desc: 'Portrait Feed' },
                   { id: '16:9', desc: 'Landscape Banner' },
                   { id: '9:16', desc: 'Story / Reel' },
@@ -757,7 +757,7 @@ export const DesignTemplatesStudio: React.FC<DesignTemplatesStudioProps> = ({
           </div>
 
           <p className="mt-4 text-[11px] text-slate-400 font-mono text-center">
-            Zero white background on Q Logomark • Pixel-perfect for LinkedIn and Facebook
+            Zero white background on Q Logomark • Pixel-perfect for Facebook and Bluesky
           </p>
         </div>
       </div>
@@ -852,7 +852,7 @@ export const DesignTemplatesStudio: React.FC<DesignTemplatesStudioProps> = ({
                     onChange={(e) => setNewTplAspect(e.target.value as any)}
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-slate-50 font-mono"
                   >
-                    <option value="1:1">1:1 Square (Facebook, LinkedIn)</option>
+                    <option value="1:1">1:1 Square (Facebook, Bluesky)</option>
                     <option value="4:5">4:5 Portrait Feed</option>
                     <option value="16:9">16:9 Landscape Banner</option>
                     <option value="9:16">9:16 Story / Reel</option>

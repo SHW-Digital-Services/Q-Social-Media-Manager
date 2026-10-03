@@ -368,9 +368,7 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
               className="px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-purple-500"
             >
               <option value="all">All Channels</option>
-              <option value="linkedin">LinkedIn</option>
               <option value="bluesky">Bluesky</option>
-              <option value="tiktok">TikTok</option>
               <option value="facebook">Facebook</option>
             </select>
 

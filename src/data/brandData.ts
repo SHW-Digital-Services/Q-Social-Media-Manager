@@ -444,7 +444,7 @@ export const INITIAL_POSTS: PostItem[] = [
     id: 'post-102',
     title: '24/7 Crisis Resource Spotlight (Weekend Coverage)',
     content: "If you're feeling overwhelmed or navigating isolation, you are not alone. Free, confidential support is available 24/7: 📞 Call 988 (Press 3 for LGBTQ+ specialized youth line) or text START to 678-678 (The Trevor Project). You matter deeply. Reach out whenever you need.",
-    platforms: ['linkedin', 'facebook'],
+    platforms: ['facebook'],
     status: 'approved',
     scheduledFor: '2026-09-20T22:00:00.000Z',
     author: {
@@ -502,7 +502,7 @@ export const INITIAL_POSTS: PostItem[] = [
     id: 'post-103',
     title: 'Privacy Transparency Report: How On-Device AI Shields You',
     content: "How does Q protect your reflection? We believe privacy is a core right, not an afterthought. With our Local AI architecture, your thoughts process right on your device. Zero ad tracking. Zero commercial surveillance. Your journey belongs only to you. Read our full transparency breakdown at the link in bio.",
-    platforms: ['linkedin', 'bluesky'],
+    platforms: ['bluesky'],
     status: 'scheduled',
     scheduledFor: '2026-09-22T14:00:00.000Z',
     author: {
@@ -549,7 +549,7 @@ export const INITIAL_POSTS: PostItem[] = [
     id: 'post-104',
     title: 'National Coming Out Day Preview (Tone Revision Needed)',
     content: "When you finally decide to come out to your parents this month, don't let fear paralyze you. Sufferers of closeted anxiety must admit their true self. Join our webinar to be cured of self-doubt.",
-    platforms: ['linkedin'],
+    platforms: ['facebook'],
     status: 'changes_requested',
     scheduledFor: null,
     author: {
@@ -621,7 +621,7 @@ export const INITIAL_POSTS: PostItem[] = [
     id: 'post-105',
     title: 'Pride & Joy Community Spotlight: Finding Chosen Family',
     content: "Family isn't only who we are born to—it's who embraces us unconditionally. To every member of our community cultivating spaces of warmth, laughter, and belonging: we see you and we honor you. What does chosen family feel like to you? Share in the comments if you feel comfortable. 🌈✨",
-    platforms: ['tiktok', 'facebook'],
+    platforms: ['facebook'],
     status: 'published',
     scheduledFor: '2026-09-18T16:00:00.000Z',
     publishedAt: '2026-09-18T16:00:00.000Z',
@@ -719,22 +719,6 @@ export const MOCK_POSTS = INITIAL_POSTS;
 export const MOCK_ACTIVITIES = INITIAL_ACTIVITY_LOGS;
 
 export const PLATFORM_SPECS: Record<string, { name: string; maxChars: number; optimalRatio: string; icon: string; brandColor: string; handleFormat: string }> = {
-  linkedin: {
-    name: 'LinkedIn',
-    maxChars: 3000,
-    optimalRatio: '16:9 or 1:1',
-    icon: 'Linkedin',
-    brandColor: '#0A66C2',
-    handleFormat: 'Your LinkedIn profile'
-  },
-  tiktok: {
-    name: 'TikTok',
-    maxChars: 2200,
-    optimalRatio: '9:16 Vertical',
-    icon: 'Video',
-    brandColor: '#000000',
-    handleFormat: '@qintelligence'
-  },
   bluesky: {
     name: 'Bluesky',
     maxChars: 300,

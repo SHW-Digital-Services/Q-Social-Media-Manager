@@ -2,8 +2,6 @@ import { SocialPlatform } from '../types';
 
 const OAUTH_SUPPORTED_PLATFORMS = new Set<SocialPlatform>([
   'facebook',
-  'linkedin',
-  'tiktok',
 ]);
 
 type OAuthStartUrlResponse = {
@@ -16,8 +14,6 @@ type OAuthStartUrlResponse = {
 export function getSocialPlatformLabel(platform: string): string {
   const labels: Record<string, string> = {
     facebook: 'Facebook',
-    linkedin: 'LinkedIn',
-    tiktok: 'TikTok',
     bluesky: 'Bluesky',
     website: 'Website',
   };

@@ -2,32 +2,6 @@ import { SocialAccountConnection } from '../types';
 
 export const INITIAL_SOCIAL_CONNECTIONS: SocialAccountConnection[] = [
   {
-    id: 'conn-linkedin',
-    platform: 'linkedin',
-    platformName: 'LinkedIn Profile',
-    accountHandle: 'Your LinkedIn profile',
-    displayName: 'LinkedIn personal profile',
-    avatarUrl: 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&w=150&q=80',
-    accountType: 'personal',
-    isConnected: false,
-    scopes: ['openid', 'profile', 'w_member_social'],
-    webhookActive: false,
-    apiHealth: 'disconnected'
-  },
-  {
-    id: 'conn-tiktok',
-    platform: 'tiktok',
-    platformName: 'TikTok Creator Hub',
-    accountHandle: '@q_intelligence',
-    displayName: 'Q Intelligence Affirmations',
-    avatarUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=150&q=80',
-    accountType: 'creator',
-    isConnected: false,
-    scopes: ['video.upload', 'video.publish', 'user.info.basic'],
-    webhookActive: false,
-    apiHealth: 'disconnected'
-  },
-  {
     id: 'conn-bluesky',
     platform: 'bluesky',
     platformName: 'Bluesky (AT Protocol)',
