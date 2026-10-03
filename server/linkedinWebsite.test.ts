@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 
-test('LinkedIn personal profile and Q website publishing through real manager routes', async () => {
+test('Removed providers are rejected and Q website publishing works through manager routes', async () => {
   process.env.VERCEL = '1'; process.env.APP_URL = 'https://social.q-ai.online';
   process.env.SOCIAL_SESSION_SECRET = 'synthetic-test-secret-at-least-32-characters';
   process.env.LINKEDIN_CLIENT_ID = 'test-client'; process.env.LINKEDIN_CLIENT_SECRET = 'test-client-secret'; process.env.LINKEDIN_VERSION = '202609';
@@ -38,32 +38,10 @@ test('LinkedIn personal profile and Q website publishing through real manager ro
     assert.equal(status.data.platforms.some((p: any) => p.platform === 'instagram'), false);
     assert.equal((await request('/api/oauth/instagram/start-url')).response.status, 400);
     assert.equal((await publish('instagram')).response.status, 400);
-    const start = await request('/api/oauth/linkedin/start-url');
-    const auth = new URL(start.data.authUrl);
-    assert.equal(auth.searchParams.get('scope'), 'openid profile w_member_social');
-    cookie = start.response.headers.getSetCookie()[0].split(';')[0];
-    const state = auth.searchParams.get('state');
-    rejectProfile = true;
-    assert.equal((await request(`/api/oauth/linkedin/callback?code=test&state=${state}`)).response.status, 400);
-    rejectProfile = false;
-    const callback = await request(`/api/oauth/linkedin/callback?code=test&state=${state}`);
-    assert.equal(callback.response.status, 302);
-    cookie = callback.response.headers.getSetCookie().find(value => value.startsWith('q_social_linkedin='))!.split(';')[0];
-    assert.equal((await request('/api/linkedin/check', {})).response.status, 200);
-    const persisted = await request('/api/social/status');
-    assert.equal(persisted.data.platforms.find((p: any) => p.platform === 'linkedin').accountHandle, 'Test Profile');
-    assert.equal(JSON.stringify(persisted.data).includes('private-linkedin-token'), false);
-    assert.equal((await publish('linkedin')).data.success, true);
-    const posted = calls.filter(c => c.url.endsWith('/rest/posts')).at(-1)!;
-    assert.equal(posted.body.author, 'urn:li:person:person-123');
-    assert.equal(posted.headers['LinkedIn-Version'], '202609');
-    assert.equal((await publish('linkedin', ['data:image/png;base64,dGVzdA=='])).data.success, true);
-    const imagePost = calls.filter(c => c.url.endsWith('/rest/posts')).at(-1)!;
-    assert.equal(imagePost.body.content.media.id, 'urn:li:image:123');
-    failImage = true; const before = calls.filter(c => c.url.endsWith('/rest/posts')).length;
-    assert.equal((await publish('linkedin', ['data:image/png;base64,dGVzdA=='])).data.results[0].status, 'failed');
-    assert.equal(calls.filter(c => c.url.endsWith('/rest/posts')).length, before); failImage = false;
-    failPublish = true; assert.equal((await publish('linkedin')).data.results[0].status, 'failed'); failPublish = false;
+    for (const platform of ['linkedin', 'tiktok', 'twitter', 'x']) {
+      assert.equal((await request(`/api/oauth/${platform}/start-url`)).response.status, 400);
+      assert.equal((await publish(platform)).response.status, 400);
+    }
     cookie = '';
     assert.equal((await publish('website')).data.results[0].status, 'not_configured');
     const token = 'qcp_' + 'a'.repeat(43);

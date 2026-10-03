@@ -128,12 +128,12 @@ export default function App() {
       const blockedPlatforms = Array.isArray(data.results)
         ? data.results
             .filter((result: any) => result.status !== 'published')
-            .map((result: any) => result.platform)
-            .join(', ')
+            .map((result: any) => `${result.platform}: ${result.message || result.status}`)
+            .join(' ') 
         : '';
       throw new Error(
         blockedPlatforms
-          ? `${data.message || 'Publishing setup is incomplete.'} Platforms needing setup: ${blockedPlatforms}.`
+          ? `${data.message || 'Publishing setup is incomplete.'} ${blockedPlatforms}`
           : data.message || data.error || 'Publishing failed.'
       );
     }

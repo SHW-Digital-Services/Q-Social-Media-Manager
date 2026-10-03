@@ -385,9 +385,9 @@ async function createApp() {
       const failed = results.filter(result => result.status !== 'published');
 
       if (failed.length > 0) {
-        return res.status(501).json({
+        return res.status(failed.some(result => result.status === 'failed') ? 502 : 409).json({
           success: false,
-          message: 'Publishing was not completed because one or more platforms still need setup.',
+          message: published.length > 0 ? 'Some channels published successfully; others failed.' : 'Publishing could not complete.',
           publishedCount: published.length,
           failedCount: failed.length,
           results,
@@ -515,7 +515,7 @@ Return valid JSON adhering to the specified schema.
 `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
         contents: prompt,
         config: {
           systemInstruction: Q_BRAND_GUIDE_PROMPT,
@@ -570,7 +570,7 @@ Return valid JSON adhering to the specified schema.
   app.post('/api/compliance/rewrite', async (req, res) => {
     try {
       const { text, style = 'Warm & Supportive', platform = 'Facebook' } = req.body;
-      if (!text) {
+      if (typeof text !== 'string' || !text.trim()) {
         return res.status(400).json({ error: 'Text is required for rewrite.' });
       }
 
@@ -604,7 +604,7 @@ Guidelines to apply:
 `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
         contents: prompt,
         config: {
           systemInstruction: Q_BRAND_GUIDE_PROMPT,
@@ -625,10 +625,18 @@ Guidelines to apply:
       });
 
       const parsed = JSON.parse(response.text?.trim() || '{}');
+      if (typeof parsed.rewrittenText !== 'string' || !parsed.rewrittenText.trim()) throw new Error('AI returned no rewritten text.');
       return res.json(parsed);
     } catch (err: any) {
-      console.error('Rewrite error:', err);
-      res.status(500).json({ error: err.message || 'Failed to rewrite text.' });
+      console.error('Rewrite provider failed:', err);
+      const text = req.body.text as string;
+      return res.json({
+        rewrittenText: text.replace(/sufferers|afflicted/gi, 'members of our community').replace(/you must/gi, 'you are welcome to'),
+        notes: 'AI rewriting is temporarily unavailable. Applied basic local wording adjustments; please review before publishing.',
+        styleApplied: req.body.style || 'Warm & Supportive',
+        source: 'local_preset',
+        degraded: true,
+      });
     }
   });
 
@@ -646,7 +654,7 @@ Guidelines to apply:
       }
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
         contents: `Generate 6 respectful, brand-safe, and affirming hashtags for Q Intelligence on topic: "${topic || 'General LGBTQ+ wellbeing and safe reflection'}" for platform: ${platform || 'Social Media'}. Do not use sensationalized or outdated terminology.`,
         config: {
           systemInstruction: Q_BRAND_GUIDE_PROMPT,

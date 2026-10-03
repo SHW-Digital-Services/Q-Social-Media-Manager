@@ -170,6 +170,8 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
         })
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Rewriting failed. Please try again.');
+      if (!data.rewrittenText) throw new Error('No rewritten text was returned. Your draft is unchanged.');
       if (data.rewrittenText) {
         setContent(data.rewrittenText);
         setAiNote(data.notes || 'Refined to match Q Intelligence welcoming and non-presumptive tone.');
@@ -179,7 +181,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
         }
       }
     } catch (e) {
-      console.error('Failed to rewrite:', e);
+      setAiNote(e instanceof Error ? e.message : 'Rewriting failed. Please try again.');
     } finally {
       setIsRewriting(false);
     }
