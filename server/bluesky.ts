@@ -44,9 +44,10 @@ function serviceUrl(value: string) {
   }
   return url.origin;
 }
-async function xrpc(service: string, method: string, body?: unknown, token?: string) {
+async function xrpc(service: string, method: string, body?: unknown, token?: string, requestMethod?: 'GET' | 'POST') {
+  const methodIsPost = requestMethod === 'POST' || body !== undefined;
   const response = await fetch(`${service}/xrpc/${method}`, {
-    method: body === undefined ? 'GET' : 'POST',
+    method: methodIsPost ? 'POST' : 'GET',
     headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(20000), redirect: 'error',
@@ -67,7 +68,8 @@ async function refresh(req: Request, res: Response) {
   let expiry = 0;
   try { expiry = JSON.parse(Buffer.from(session.accessJwt.split('.')[1], 'base64url').toString()).exp * 1000; } catch {}
   if (expiry < Date.now() + 60000) {
-    const data = await xrpc(session.service, 'com.atproto.server.refreshSession', {}, session.refreshJwt);
+    // AT Protocol requires refreshSession to be a bodyless POST.
+    const data = await xrpc(session.service, 'com.atproto.server.refreshSession', undefined, session.refreshJwt, 'POST');
     if (!data.accessJwt || !data.refreshJwt || data.did !== session.did) throw new Error('Bluesky session renewal failed. Reconnect your account.');
     session.accessJwt = data.accessJwt;
     session.refreshJwt = data.refreshJwt;
