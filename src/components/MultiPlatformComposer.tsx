@@ -213,8 +213,14 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
   };
 
   const currentPlatformSpec = PLATFORM_SPECS[previewPlatform] || PLATFORM_SPECS.facebook;
-  const currentChars = content.length + tags.join(' ').length + (tags.length > 0 ? 1 : 0);
+  const publishingText = [content.trim(), ...tags].filter(Boolean).join('\n');
+  const graphemeCount = [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(publishingText)].length;
+  const currentChars = previewPlatform === 'bluesky' ? graphemeCount : publishingText.length;
   const isOverLimit = currentChars > currentPlatformSpec.maxChars;
+  const blueskySelected = selectedPlatforms.includes('bluesky');
+  const blueskyOverLimit = blueskySelected && (graphemeCount > 300 || new TextEncoder().encode(publishingText).length > 3000 || mediaUrls.length > 4);
+  const publishingOverLimit = blueskyOverLimit || selectedPlatforms.some(platform =>
+    platform !== 'bluesky' && publishingText.length > PLATFORM_SPECS[platform].maxChars);
 
   const buildPostPayload = (): Partial<PostItem> => ({
     title: title.trim() || 'Untitled Social Broadcast',
@@ -614,6 +620,10 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
             </div>
           )}
 
+          {blueskySelected && <p role={blueskyOverLimit ? 'alert' : undefined} className={`text-sm ${blueskyOverLimit ? 'text-rose-700' : 'text-slate-500'}`}>
+            Bluesky: {graphemeCount}/300 characters including tags · {mediaUrls.length}/4 images.
+            {blueskyOverLimit && ' Shorten the text or tags, or remove excess images. You can still save this draft.'}
+          </p>}
           {saveError && <p role="alert" className="text-sm text-rose-700">{saveError} Your draft is still open.</p>}
           {/* Publishing & Approval Action Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-6 border-t border-slate-100">
@@ -626,7 +636,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
             </button>
 
             <div className="flex items-center gap-3">
-              {isOwner && <button type="button" disabled={isScheduling || isOverLimit || !selectedPlatforms.length || !scheduledDateTime || !content.trim()} onClick={async () => {
+              {isOwner && <button type="button" disabled={isScheduling || publishingOverLimit || !selectedPlatforms.length || !scheduledDateTime || !content.trim()} onClick={async () => {
                 await performSave(() => onSchedulePost(buildPostPayload()));
               }} className="px-4 py-2.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 disabled:opacity-50 cursor-pointer" title="Selected channels publish at the scheduled time."> {isScheduling ? 'Scheduling…' : 'Schedule Post'}</button>}
               {!isOwner ? (
@@ -643,7 +653,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
                   onClick={() => {
                     performSave(() => onPublishDirect(buildPostPayload()));
                   }}
-                  disabled={isScheduling || isOverLimit}
+                  disabled={isScheduling || publishingOverLimit}
                   className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                 >
                   <Send className="w-3.5 h-3.5 text-emerald-700" />
@@ -656,7 +666,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
                 onClick={() => {
                   performSave(() => onSubmitForApproval(buildPostPayload()));
                 }}
-                disabled={isScheduling || isOverLimit}
+                disabled={isScheduling || publishingOverLimit}
                 className="px-6 py-2.5 rounded-full text-xs font-bold text-white bg-pride-spectrum hover:opacity-95 shadow-glow-purple transition-all disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
               >
                 <CheckCircle2 className="w-4 h-4" />
