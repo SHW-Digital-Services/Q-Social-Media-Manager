@@ -95,6 +95,9 @@ export interface AssetVersion {
 }
 
 export interface PostItem {
+  remoteIds?: string[];
+  engagement?: { likes: number; comments: number; shares: number };
+  source?: 'platform';
   id: string;
   title: string;
   content: string;

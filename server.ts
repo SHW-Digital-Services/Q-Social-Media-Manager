@@ -1,3 +1,4 @@
+import { registerSocialPostRoutes } from './server/socialPosts.js';
 import { publishFacebook } from './server/facebook.js';
 import { registerWebsiteRoutes, publishWebsite } from './server/website.js';
 import { startSocialState, consumeSocialState, saveSocialSession, getSocialSession, clearSocialSession, supportedSessionProvider } from './server/socialSessions.js';
@@ -230,6 +231,7 @@ async function createApp() {
   app.use(express.json({ limit: '10mb' }));
   registerBlueskyRoutes(app);
   registerWebsiteRoutes(app);
+  registerSocialPostRoutes(app);
 
 
   // Health check
@@ -369,6 +371,15 @@ async function createApp() {
       console.error('OAuth callback failed.');
       res.status(500).json({ error: err.message || 'OAuth callback failed.' });
     }
+  });
+
+  app.post('/api/schedule/facebook', async (req, res) => {
+    if (!isBlueskySameOrigin(req)) return res.status(403).json({ error: 'Scheduling must be requested from this website.' });
+    const payload = req.body as PublishRequest;
+    const validationError = requirePublishFields(payload);
+    if (validationError || payload.platforms?.length !== 1 || payload.platforms[0] !== 'facebook') return res.status(400).json({ error: validationError || 'Native scheduling currently supports Facebook only.' });
+    const result = await publishFacebook(req, payload, true);
+    res.status(result.status === 'published' ? 200 : 409).json({ success: result.status === 'published', result, error: result.status === 'published' ? undefined : result.message });
   });
 
   app.post('/api/publish/broadcast', async (req, res) => {

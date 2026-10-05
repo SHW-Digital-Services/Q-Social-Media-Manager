@@ -9,11 +9,13 @@ async function graph(path: string, token: string, body?: URLSearchParams | FormD
   if (!response.ok || data.error) throw new Error(`Facebook: ${data.error?.message || `request failed (${response.status})`}`);
   return data;
 }
-export async function publishFacebook(req: Request, payload: { content?: string; tags?: string[]; mediaUrls?: string[] }) {
+export async function publishFacebook(req: Request, payload: { content?: string; tags?: string[]; mediaUrls?: string[]; scheduledFor?: string | null }, schedule = false) {
   const fail = (message: string) => ({ platform: 'facebook' as const, status: 'failed' as const, message });
   const session = getSocialSession(req, 'facebook');
   if (!session) return { platform: 'facebook' as const, status: 'not_configured' as const, message: 'Facebook is disconnected. Reconnect before publishing.' };
   try {
+    const scheduledTime = payload.scheduledFor ? new Date(payload.scheduledFor).getTime() : NaN;
+    if (schedule && (!Number.isFinite(scheduledTime) || scheduledTime < Date.now() + 10 * 60000 || scheduledTime > Date.now() + 29 * 86400000)) return fail('Choose a Facebook schedule between 10 minutes and 29 days from now.');
     const accounts = await graph('me/accounts?fields=id,name,access_token,tasks&limit=100', session.access_token);
     const pages = (accounts.data || []).filter((page: any) => /^\d+$/.test(page.id) && typeof page.access_token === 'string' && (!page.tasks || page.tasks.includes('CREATE_CONTENT') || page.tasks.includes('MANAGE')));
     const page = process.env.FACEBOOK_PAGE_ID ? pages.find((item: any) => item.id === process.env.FACEBOOK_PAGE_ID) : pages.length === 1 ? pages[0] : null;
@@ -23,6 +25,10 @@ export async function publishFacebook(req: Request, payload: { content?: string;
     const images = await Promise.all((payload.mediaUrls || []).map(url => loadPublishingImage(url, 8000000)));
     const message = [payload.content?.trim(), ...(payload.tags || [])].filter(Boolean).join('\n');
     const form = new URLSearchParams({ message });
+    if (schedule) {
+      form.set('published', 'false');
+      form.set('scheduled_publish_time', String(Math.floor(scheduledTime / 1000)));
+    }
     for (const [index, image] of images.entries()) {
       const upload = new FormData();
       upload.set('published', 'false');
@@ -33,6 +39,6 @@ export async function publishFacebook(req: Request, payload: { content?: string;
     }
     const result = await graph(`${page.id}/feed`, page.access_token, form);
     if (!result.id) throw new Error('Facebook did not confirm publication. Check the Page before retrying.');
-    return { platform: 'facebook' as const, status: 'published' as const, message: `Published to Facebook Page ${page.name}.`, remoteId: result.id };
+    return { platform: 'facebook' as const, status: 'published' as const, message: `${schedule ? 'Scheduled on' : 'Published to'} Facebook Page ${page.name}.`, remoteId: result.id };
   } catch (error) { return fail((error as Error).message); }
 }

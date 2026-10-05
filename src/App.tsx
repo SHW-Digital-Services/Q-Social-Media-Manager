@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PostItem, PostStatus, PostVersion, SocialAccountConnection } from './types';
 import { MOCK_POSTS, Q_LOGO_URL } from './data/brandData';
 import { INITIAL_SOCIAL_CONNECTIONS } from './data/socialConnectionsData';
@@ -27,8 +27,38 @@ import { Analytics } from '@vercel/analytics/react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('queue');
-  // Blank platform initialized with no posts as requested
-  const [posts, setPosts] = useState<PostItem[]>([]);
+  // Restore the saved local queue before rendering.
+  const [posts, updatePosts] = useState<PostItem[]>(() => {
+    try { const saved = JSON.parse(localStorage.getItem('q-social-posts-v1') || '[]'); return Array.isArray(saved) ? saved : []; } catch { return []; }
+  });
+  const postsRef = useRef(posts);
+  const setPosts = useCallback((action: React.SetStateAction<PostItem[]>) => {
+    const next = typeof action === 'function' ? action(postsRef.current) : action;
+    // Save before changing screens, so refresh cannot discard a submitted post.
+    localStorage.setItem('q-social-posts-v1', JSON.stringify(next));
+    postsRef.current = next;
+    updatePosts(next);
+  }, []);
+  const [platformPosts, setPlatformPosts] = useState<PostItem[]>([]);
+  const [platformReadError, setPlatformReadError] = useState('');
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const response = await fetch('/api/social/posts', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Platform posts could not be loaded.');
+        const data = await response.json();
+        if (active) { setPlatformPosts(data.posts || []); setPlatformReadError((data.errors || []).join(' ')); }
+      } catch (error) { if (active) setPlatformReadError((error as Error).message); }
+    };
+    load();
+    const timer = setInterval(load, 60000);
+    return () => { active = false; clearInterval(timer); };
+  }, []);
+  const visiblePosts = [...posts.map(local => {
+    const remote = platformPosts.find(p => p.remoteIds?.some(id => local.remoteIds?.includes(id)));
+    return remote ? { ...local, status: remote.status, publishedAt: remote.publishedAt, engagement: remote.engagement } : local;
+  }), ...platformPosts.filter(remote => !posts.some(local => local.remoteIds?.includes(remote.remoteIds?.[0] || remote.id)))];
   const [editingPost, setEditingPost] = useState<PostItem | null>(null);
   const [complianceAuditedPost, setComplianceAuditedPost] = useState<PostItem | null>(null);
 
@@ -302,11 +332,12 @@ export default function App() {
     }
 
     try {
-      await publishBroadcast(post, postId);
+      const published = await publishBroadcast(post, postId);
       setPosts(prev => prev.map(p => {
         if (p.id === postId) {
           const publishedPost: PostItem = {
             ...p,
+            remoteIds: published.results.map((result: any) => result.remoteId).filter(Boolean),
             status: 'published',
             publishedAt: new Date().toISOString()
           };
@@ -323,7 +354,7 @@ export default function App() {
 
   // Composer Actions
   const handleSaveDraft = (postData: Partial<PostItem>) => {
-    if (editingPost) {
+    if (editingPost && posts.some(p => p.id === editingPost.id)) {
       setPosts(prev => prev.map(p => {
         if (p.id === editingPost.id) {
           const updated: PostItem = { ...p, ...postData } as PostItem;
@@ -394,13 +425,15 @@ export default function App() {
         comments: [],
         piiShieldVerified: postData.piiShieldVerified ?? true
       };
-      setPosts([newPost, ...posts]);
+      setPosts(prev => [newPost, ...prev]);
+      setEditingPost(null);
     }
-    showToast('Draft successfully saved to repository.');
+    setActiveTab('queue');
+    showToast('Draft saved on this browser.');
   };
 
   const handleSubmitForApproval = (postData: Partial<PostItem>) => {
-    if (editingPost) {
+    if (editingPost && posts.some(p => p.id === editingPost.id)) {
       setPosts(prev => prev.map(p => {
         if (p.id === editingPost.id) {
           const updated: PostItem = { 
@@ -475,17 +508,33 @@ export default function App() {
         comments: [],
         piiShieldVerified: postData.piiShieldVerified ?? true
       };
-      setPosts([newPost, ...posts]);
+      setPosts(prev => [newPost, ...prev]);
+      setEditingPost(null);
     }
     setActiveTab('queue');
     showToast('Broadcast submitted to Automated Approval Queue!');
   };
 
+  const handleSchedulePost = async (postData: Partial<PostItem>) => {
+    try {
+      const response = await fetch('/api/schedule/facebook', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(postData) });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Facebook did not confirm the schedule.');
+      handleSaveDraft(postData);
+      const saved = editingPost && postsRef.current.some(p => p.id === editingPost.id) ? editingPost.id : postsRef.current[0].id;
+      setPosts(prev => prev.map(p => p.id === saved ? { ...p, status: 'scheduled', remoteIds: [data.result.remoteId], approvedBy: currentUser?.name } : p));
+      setEditingPost(null);
+      setActiveTab('calendar');
+      showToast('Facebook confirmed the schedule and will publish at the selected time.');
+    } catch (error) { showToast((error as Error).message, 'warning'); }
+  };
+
   const handlePublishDirect = async (postData: Partial<PostItem>) => {
     const newPostId = `post-${Date.now()}`;
 
+    let publication: any;
     try {
-      await publishBroadcast(postData, newPostId);
+      publication = await publishBroadcast(postData, newPostId);
     } catch (err: any) {
       showToast(err.message || 'Publishing is not configured yet.', 'warning');
       return;
@@ -517,6 +566,7 @@ export default function App() {
 
     const newPost: PostItem = {
       id: newPostId,
+      remoteIds: publication.results.map((result: any) => result.remoteId).filter(Boolean),
       title: postData.title || 'Live Broadcast',
       content: postData.content || '',
       platforms: postData.platforms || ['facebook'],
@@ -552,7 +602,8 @@ export default function App() {
       comments: [],
       piiShieldVerified: true
     };
-    setPosts([newPost, ...posts]);
+    setPosts(prev => [newPost, ...prev]);
+      setEditingPost(null);
     setActiveTab('queue');
     confetti({ particleCount: 90, spread: 70 });
     showToast('Broadcast published through the backend social provider routes.');
@@ -617,6 +668,7 @@ export default function App() {
 
   // Edit from Queue or Calendar
   const handleEditPost = (post: PostItem) => {
+    if (post.source === 'platform' || (post.status === 'scheduled' && post.remoteIds?.length)) { showToast('This post was synced from the platform. Edit it on the social platform.', 'info'); return; }
     setEditingPost(post);
     setActiveTab('composer');
   };
@@ -665,7 +717,7 @@ export default function App() {
       title: 'Scheduled Broadcast',
       content: '',
       platforms: ['facebook'],
-      status: 'scheduled',
+      status: 'draft',
       scheduledFor: `${dateStr}T10:00:00`,
       createdAt: new Date().toISOString(),
       lastModified: new Date().toISOString(),
@@ -728,6 +780,12 @@ export default function App() {
     showToast(`Loaded ${tag} into Broadcast Composer!`);
   };
 
+  const handleReschedulePost = (postId: string, date: string) => {
+    if (!Number.isFinite(new Date(date).getTime()) || new Date(date).getTime() <= Date.now()) { showToast('Choose a future date and time.', 'warning'); return; }
+    setPosts(prev => prev.map(post => post.id === postId ? recordPostVersion({ ...post, scheduledFor: date, lastModified: new Date().toISOString() }, `Calendar slot changed to ${new Date(date).toLocaleString()}`) : post));
+    showToast('Calendar slot saved. Use Schedule on Facebook to confirm automatic publishing.');
+  };
+
   const pendingCount = posts.filter(p => p.status === 'pending_approval').length;
 
   // Gate app behind Login Page if not authenticated
@@ -748,7 +806,7 @@ export default function App() {
       
       {/* Pride Spectrum Accent Topline & Global Brand Header */}
       <Header
-        posts={posts}
+        posts={visiblePosts}
         onNewPost={() => {
           setEditingPost(null);
           setActiveTab('composer');
@@ -780,7 +838,11 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'queue' && (
           <ApprovalQueue
-            posts={posts}
+            platformReadError={platformReadError}
+            engagementPosts={platformPosts}
+            onScheduleNewPost={handleScheduleFromCalendar}
+            onReschedulePost={handleReschedulePost}
+            posts={visiblePosts}
             onApprovePost={handleApprovePost}
             onRequestChanges={handleRequestChanges}
             onPublishNow={handlePublishNow}
@@ -799,24 +861,11 @@ export default function App() {
 
         {activeTab === 'calendar' && (
           <ContentCalendar
-            posts={posts}
+            posts={visiblePosts}
             onSelectPost={handleEditPost}
             onEditPost={handleEditPost}
             onScheduleNewPost={handleScheduleFromCalendar}
-            onReschedulePost={(postId, newDateStr) => {
-              setPosts(prev => prev.map(p => {
-                if (p.id === postId) {
-                  const updated: PostItem = { 
-                    ...p, 
-                    scheduledFor: newDateStr, 
-                    lastModified: new Date().toISOString() 
-                  };
-                  return recordPostVersion(updated, `Rescheduled to ${new Date(newDateStr).toLocaleString()}`);
-                }
-                return p;
-              }));
-              showToast('Broadcast rescheduled on visual calendar!');
-            }}
+            onReschedulePost={handleReschedulePost}
             onOpenVersionHistory={handleOpenVersionHistory}
           />
         )}
@@ -827,6 +876,7 @@ export default function App() {
             onSaveDraft={handleSaveDraft}
             onSubmitForApproval={handleSubmitForApproval}
             onPublishDirect={handlePublishDirect}
+            onSchedulePost={handleSchedulePost}
             onOpenMediaPicker={handleOpenMediaPicker}
             onOpenComplianceTab={() => setActiveTab('compliance')}
             currentUser={currentUser}
@@ -844,7 +894,7 @@ export default function App() {
 
         {activeTab === 'compliance' && (
           <ComplianceAuditor
-            posts={posts}
+            posts={visiblePosts}
             selectedPost={complianceAuditedPost}
             onApplyRewriteToPost={handleApplyRewriteToPost}
           />
@@ -870,7 +920,7 @@ export default function App() {
 
         {activeTab === 'collab' && (
           <CollaborationRoom
-            posts={posts}
+            posts={visiblePosts}
             onOpenPostInQueue={(postId) => {
               setActiveTab('queue');
             }}

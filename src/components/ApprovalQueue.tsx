@@ -1,3 +1,4 @@
+import { ContentCalendar } from './ContentCalendar';
 import React, { useState } from 'react';
 import { PostItem, PostStatus, SocialPlatform } from '../types';
 import { PLATFORM_SPECS, Q_LOGO_URL } from '../data/brandData';
@@ -30,6 +31,10 @@ import {
 
 interface ApprovalQueueProps {
   posts: PostItem[];
+  platformReadError?: string;
+  engagementPosts?: PostItem[];
+  onScheduleNewPost: (date: string) => void;
+  onReschedulePost: (postId: string, date: string) => void;
   onApprovePost: (postId: string) => void;
   onRequestChanges: (postId: string, feedback: string) => void;
   onPublishNow: (postId: string) => void;
@@ -44,6 +49,10 @@ interface ApprovalQueueProps {
 
 export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
   posts,
+  platformReadError,
+  engagementPosts,
+  onScheduleNewPost,
+  onReschedulePost,
   onApprovePost,
   onRequestChanges,
   onPublishNow,
@@ -216,6 +225,8 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
         <EngagementInsightsCard 
           onInsertTagIntoComposer={onInsertTagIntoComposer}
           defaultExpanded={true}
+          posts={engagementPosts || posts}
+          error={platformReadError}
         />
       )}
 
@@ -277,68 +288,7 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
 
       {/* Main View: Calendar or List */}
       {viewMode === 'calendar' ? (
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-2xs space-y-6">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-            <div>
-              <h3 className="text-lg font-bold font-display text-slate-900 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-purple-600" />
-                <span>Multi-Platform Schedule Calendar</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Optimal broadcasting slots scheduled across marketing channels.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-xs font-mono text-slate-600 bg-purple-50 px-3 py-1.5 rounded-full border border-purple-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Auto-sync enabled
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
-            {['Mon, Sep 21', 'Tue, Sep 22', 'Wed, Sep 23', 'Thu, Sep 24', 'Fri, Sep 25', 'Sat, Sep 26', 'Sun, Sep 27'].map((day, idx) => {
-              const dayPosts = posts.filter((_, postIdx) => (postIdx % 7) === idx);
-              return (
-                <div key={day} className="border border-slate-200 rounded-2xl p-3 bg-slate-50/60 min-h-[220px] flex flex-col">
-                  <div className="text-xs font-bold text-slate-700 pb-2 border-b border-slate-200/80 mb-2.5">
-                    {day}
-                  </div>
-                  <div className="space-y-2 flex-1">
-                    {dayPosts.length === 0 ? (
-                      <div className="text-[11px] text-slate-400 italic py-4 text-center">
-                        No posts slotted
-                      </div>
-                    ) : (
-                      dayPosts.map(p => (
-                        <div 
-                          key={p.id}
-                          onClick={() => onEditPost(p)}
-                          className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs hover:border-purple-400 cursor-pointer transition-all text-left"
-                        >
-                          <div className="flex items-center justify-between gap-1 mb-1">
-                            <span className="text-[10px] font-mono text-purple-700 font-semibold">
-                              {p.scheduledFor ? new Date(p.scheduledFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Flexible'}
-                            </span>
-                            <span className={`w-1.5 h-1.5 rounded-full ${p.complianceAudit.score >= 90 ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-                          </div>
-                          <p className="text-xs font-semibold text-slate-800 line-clamp-2 leading-snug">
-                            {p.title}
-                          </p>
-                          <div className="flex items-center gap-1 mt-1.5">
-                            {p.platforms.map(pl => (
-                              <span key={pl} className="text-[9px] px-1.5 py-0.2 bg-slate-100 rounded text-slate-600 uppercase font-mono">
-                                {pl.slice(0, 3)}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <ContentCalendar posts={filteredPosts} onSelectPost={onEditPost} onEditPost={onEditPost} onScheduleNewPost={onScheduleNewPost} onReschedulePost={onReschedulePost} onOpenVersionHistory={onOpenVersionHistory} />
       ) : (
         /* List View */
         <div className="space-y-4">
@@ -570,7 +520,7 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                             title="Authorized: Lead Approver (scott@q-ai.online)"
                           >
                             <Check className="w-3.5 h-3.5" />
-                            <span>Approve & Schedule</span>
+                            <span>Approve Post</span>
                           </button>
                         ) : (
                           <div

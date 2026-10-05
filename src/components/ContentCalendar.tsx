@@ -1,3 +1,4 @@
+import { localDateKey, localDateTime } from '../utils/postDates';
 import React, { useState, useMemo } from 'react';
 import { PostItem, SocialPlatform, PostStatus } from '../types';
 import { 
@@ -93,7 +94,7 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
   onOpenVersionHistory,
 }) => {
   // Calendar Navigation State
-  const [currentDate, setCurrentDate] = useState(() => new Date(2026, 8, 20)); // Sep 2026 current date
+  const [currentDate, setCurrentDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
   const [platformFilter, setPlatformFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -123,7 +124,7 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
   };
 
   const jumpToToday = () => {
-    setCurrentDate(new Date(2026, 8, 20));
+    setCurrentDate(new Date());
   };
 
   // Filter posts
@@ -143,9 +144,9 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
   const postsByDate = useMemo(() => {
     const map: Record<string, PostItem[]> = {};
     filteredPosts.forEach(post => {
-      const dateSource = post.scheduledFor || post.publishedAt || post.lastModified;
+      const dateSource = (post.status === 'published' ? post.publishedAt : post.scheduledFor);
       if (dateSource) {
-        const key = dateSource.slice(0, 10);
+        const key = localDateKey(dateSource);
         if (!map[key]) map[key] = [];
         map[key].push(post);
       }
@@ -176,12 +177,12 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
     // Prev month padding
     for (let i = firstDayIndex - 1; i >= 0; i--) {
       const d = new Date(year, month - 1, prevMonthTotalDays - i);
-      const key = d.toISOString().slice(0, 10);
+      const key = localDateKey(d);
       days.push({
         date: d,
         dateKey: key,
         isCurrentMonth: false,
-        isToday: key === '2026-09-20',
+        isToday: key === localDateKey(new Date()),
         dayNumber: d.getDate()
       });
     }
@@ -194,7 +195,7 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
         date: d,
         dateKey: key,
         isCurrentMonth: true,
-        isToday: key === '2026-09-20',
+        isToday: key === localDateKey(new Date()),
         dayNumber: i
       });
     }
@@ -203,12 +204,12 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
     const remainingDays = 42 - days.length; // 6 rows * 7 days
     for (let i = 1; i <= remainingDays; i++) {
       const d = new Date(year, month + 1, i);
-      const key = d.toISOString().slice(0, 10);
+      const key = localDateKey(d);
       days.push({
         date: d,
         dateKey: key,
         isCurrentMonth: false,
-        isToday: key === '2026-09-20',
+        isToday: key === localDateKey(new Date()),
         dayNumber: i
       });
     }
@@ -222,14 +223,14 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
     const firstDayOfWeek = curr.getDate() - curr.getDay();
     const days = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date(curr.setDate(firstDayOfWeek + i));
-      const key = d.toISOString().slice(0, 10);
+      const d = new Date(curr.getFullYear(), curr.getMonth(), firstDayOfWeek + i);
+      const key = localDateKey(d);
       days.push({
         date: d,
         dateKey: key,
         dayNumber: d.getDate(),
         dayName: d.toLocaleDateString('default', { weekday: 'short' }),
-        isToday: key === '2026-09-20'
+        isToday: key === localDateKey(new Date())
       });
     }
     return days;
@@ -247,14 +248,14 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
 
   const handleOpenReschedule = (post: PostItem) => {
     const currentVal = post.scheduledFor 
-      ? post.scheduledFor.slice(0, 16) 
-      : '2026-09-21T10:00';
+      ? localDateTime(post.scheduledFor)
+      : localDateTime(new Date(Date.now() + 86400000));
     setRescheduleDateInput(currentVal);
     setShowRescheduleModal(true);
   };
 
   const handleSaveReschedule = () => {
-    if (inspectedPost && rescheduleDateInput) {
+    if (inspectedPost && rescheduleDateInput && Number.isFinite(new Date(rescheduleDateInput).getTime()) && new Date(rescheduleDateInput).getTime() > Date.now()) {
       onReschedulePost(inspectedPost.id, new Date(rescheduleDateInput).toISOString());
       setShowRescheduleModal(false);
       setInspectedPost(prev => prev ? { ...prev, scheduledFor: new Date(rescheduleDateInput).toISOString() } : null);
@@ -343,7 +344,7 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
 
             <button
               type="button"
-              onClick={() => onScheduleNewPost(new Date().toISOString().slice(0, 10))}
+              onClick={() => onScheduleNewPost(localDateKey(new Date()))}
               className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -683,6 +684,8 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  disabled={inspectedPost.source === 'platform' || Boolean(inspectedPost.remoteIds?.length)}
+                  title={inspectedPost.remoteIds?.length ? 'Manage this schedule on the social platform.' : undefined}
                   onClick={() => handleOpenReschedule(inspectedPost)}
                   className="px-3.5 py-2 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >

@@ -1,3 +1,4 @@
+import { localDateTime } from '../utils/postDates';
 import React, { useState, useEffect } from 'react';
 import { PostItem, SocialPlatform } from '../types';
 import { PLATFORM_SPECS, Q_LOGO_URL } from '../data/brandData';
@@ -33,6 +34,7 @@ interface MultiPlatformComposerProps {
   onSaveDraft: (postData: Partial<PostItem>) => void;
   onSubmitForApproval: (postData: Partial<PostItem>) => void;
   onPublishDirect: (postData: Partial<PostItem>) => void;
+  onSchedulePost: (postData: Partial<PostItem>) => Promise<void>;
   onOpenMediaPicker: (onSelect: (url: string) => void) => void;
   onOpenComplianceTab: () => void;
   currentUser?: StaffUser | null;
@@ -43,6 +45,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
   onSaveDraft,
   onSubmitForApproval,
   onPublishDirect,
+  onSchedulePost,
   onOpenMediaPicker,
   onOpenComplianceTab,
   currentUser,
@@ -59,13 +62,14 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
   const [campaign, setCampaign] = useState(initialPost?.campaign || 'General Wellbeing 2026');
   const [scheduledDateTime, setScheduledDateTime] = useState(
     initialPost?.scheduledFor 
-      ? new Date(initialPost.scheduledFor).toISOString().slice(0, 16) 
-      : new Date(Date.now() + 86400000).toISOString().slice(0, 16)
+      ? localDateTime(initialPost.scheduledFor)
+      : localDateTime(new Date(Date.now() + 86400000))
   );
   const [tags, setTags] = useState<string[]>(
     initialPost?.tags || ['#QIntelligence', '#LGBTQWellbeing', '#SafeSpace']
   );
   const [newTagInput, setNewTagInput] = useState('');
+  const [isScheduling, setIsScheduling] = useState(false);
   const [piiVerified, setPiiVerified] = useState(true);
 
   // Media alteration studio modal state
@@ -222,7 +226,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
     mediaUrls,
     tags,
     campaign,
-    scheduledFor: new Date(scheduledDateTime).toISOString(),
+    scheduledFor: scheduledDateTime && Number.isFinite(new Date(scheduledDateTime).getTime()) ? new Date(scheduledDateTime).toISOString() : null,
     piiShieldVerified: piiVerified && piiWarnings.length === 0,
     complianceAudit: {
       score: flaggedWords.length === 0 ? 95 : 65,
@@ -569,7 +573,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
                 className="w-full text-xs px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800 font-mono"
               />
               <span className="text-[10px] text-slate-500 font-mono">
-                Optimal time: 7:30 PM (Evening safe reflection window)
+                Times use your local time zone. A calendar slot is confirmed for automatic publishing only after Schedule on Facebook succeeds.
               </span>
             </div>
 
@@ -624,6 +628,10 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
             </button>
 
             <div className="flex items-center gap-3">
+              {isOwner && <button type="button" disabled={isScheduling || isOverLimit || selectedPlatforms.length !== 1 || selectedPlatforms[0] !== 'facebook' || !scheduledDateTime || !content.trim()} onClick={async () => {
+                setIsScheduling(true);
+                try { await onSchedulePost(buildPostPayload()); } finally { setIsScheduling(false); }
+              }} className="px-4 py-2.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 disabled:opacity-50 cursor-pointer" title="Facebook sends the post at the selected time, even when this app is closed. Select Facebook only."> {isScheduling ? 'Scheduling…' : 'Schedule on Facebook'}</button>}
               {hasWebsiteTarget && !isOwner ? (
                 <div 
                   className="px-4 py-2.5 rounded-full text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 flex items-center gap-1.5 cursor-not-allowed"
