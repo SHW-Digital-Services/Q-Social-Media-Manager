@@ -26,13 +26,15 @@ import {
   PenTool,
   Scissors,
   Crown,
-  Globe
+  Globe,
+  Trash2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface MultiPlatformComposerProps {
   initialPost?: PostItem | null;
   onSaveDraft: (postData: Partial<PostItem>) => Promise<void>;
+  onDeleteDraft: () => Promise<void>;
   onSubmitForApproval: (postData: Partial<PostItem>) => Promise<void>;
   onPublishDirect: (postData: Partial<PostItem>) => Promise<void>;
   onSchedulePost: (postData: Partial<PostItem>) => Promise<void>;
@@ -44,6 +46,7 @@ interface MultiPlatformComposerProps {
 export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
   initialPost,
   onSaveDraft,
+  onDeleteDraft,
   onSubmitForApproval,
   onPublishDirect,
   onSchedulePost,
@@ -65,6 +68,8 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
   const [mediaUrls, setMediaUrls] = useState<string[]>(startingPost?.mediaUrls || [Q_LOGO_URL]);
   const [campaign, setCampaign] = useState(startingPost?.campaign || 'General Wellbeing 2026');
   const [saveError, setSaveError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const canDeleteDraft = !initialPost?.revision || (initialPost.status === 'draft' && !initialPost.deliveryStates?.length);
   const performSave = async (action: () => Promise<void>) => { setIsScheduling(true); setSaveError(''); try { await action(); localStorage.removeItem(draftKey); } catch(error) { setSaveError((error as Error).message); } finally { setIsScheduling(false); } };
   const [scheduledDateTime, setScheduledDateTime] = useState(
     startingPost?.scheduledFor 
@@ -626,7 +631,21 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
           </p>}
           {saveError && <p role="alert" className="text-sm text-rose-700">{saveError} Your draft is still open.</p>}
           {/* Publishing & Approval Action Bar */}
+          {canDeleteDraft && confirmDelete && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 space-y-3">
+            <p className="text-sm text-rose-900">Delete this draft and its unsaved changes? This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button type="button" disabled={isScheduling} onClick={async () => {
+                setIsScheduling(true);
+                setSaveError('');
+                try { await onDeleteDraft(); }
+                catch (error) { setSaveError((error as Error).message); }
+                finally { setIsScheduling(false); }
+              }} className="px-4 py-2 rounded-full bg-rose-700 text-white text-xs font-semibold disabled:opacity-50">{isScheduling ? 'Deleting…' : 'Confirm Delete'}</button>
+              <button type="button" disabled={isScheduling} onClick={() => setConfirmDelete(false)} className="px-4 py-2 rounded-full bg-white text-slate-700 text-xs font-semibold disabled:opacity-50">Keep Draft</button>
+            </div>
+          </div>}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-6 border-t border-slate-100">
+            <div className="flex flex-wrap gap-3">
             <button
               type="button"
               disabled={isScheduling} onClick={() => performSave(() => onSaveDraft(buildPostPayload()))}
@@ -634,6 +653,8 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
             >
               Save Draft
             </button>
+            {canDeleteDraft && <button type="button" disabled={isScheduling} onClick={() => setConfirmDelete(true)} className="px-4 py-2.5 rounded-full text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />Delete Draft</button>}
+            </div>
 
             <div className="flex items-center gap-3">
               {isOwner && <button type="button" disabled={isScheduling || publishingOverLimit || !selectedPlatforms.length || !scheduledDateTime || !content.trim()} onClick={async () => {

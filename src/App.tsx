@@ -156,6 +156,22 @@ export default function App() {
   const handleSaveDraft=async(data:Partial<PostItem>)=>{
     await savePost(data,'draft',editingPost);setEditingPost(null);setActiveTab('queue');showToast('Draft saved to the shared queue.');
   };
+  const handleDeleteDraft = async () => {
+    if (editingPost?.revision) {
+      const response = await apiFetch(`/api/posts/${editingPost.id}`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expectedRevision: editingPost.revision }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'The draft could not be deleted.');
+      setPosts(previous => previous.filter(post => post.id !== editingPost.id));
+    }
+    const draftKey = `q-social-composer-v2:${currentUser?.id}:${editingPost?.id || 'new'}`;
+    try { localStorage.removeItem(draftKey); } catch { /* Shared deletion has already succeeded. */ }
+    setEditingPost(null);
+    setActiveTab('queue');
+    showToast('Draft deleted.');
+  };
   const handleSubmitForApproval=async(data:Partial<PostItem>)=>{
     await savePost(data,'submit',editingPost);setEditingPost(null);setActiveTab('queue');showToast('Post saved and submitted for approval.');
   };
@@ -394,17 +410,17 @@ export default function App() {
       />
 
       {legacyDrafts.length>0 && <aside className="p-4 bg-amber-50 text-amber-950 text-sm flex items-center justify-between gap-3"><span>{legacyDrafts.length} posts from the previous browser queue can be recovered as shared drafts.</span><button disabled={recoveringDrafts} onClick={recoverLegacyDrafts} className="font-semibold underline">{recoveringDrafts?'Recovering…':'Recover browser drafts'}</button></aside>}
-      {/* Primary Sticky Hub Navigation */}
-      <Navigation
-        activeTab={activeTab}
-        onSelectTab={setActiveTab}
-        pendingCount={pendingCount}
-        activityCount={posts.filter(p=>p.status==='changes_requested').length}
-        connectedChannelsCount={socialConnections.filter(c => c.isConnected).length}
-      />
+      <div className="flex flex-1 flex-col lg:flex-row">
+        <Navigation
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+          pendingCount={pendingCount}
+          activityCount={posts.filter(p=>p.status==='changes_requested').length}
+          connectedChannelsCount={socialConnections.filter(c => c.isConnected).length}
+        />
 
       {/* Main Workspace Stage */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 min-w-0 w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {queueError && <p role="alert" className="mb-4 rounded-xl bg-amber-50 p-4 text-amber-900">{queueError}</p>}
         {activeTab === 'queue' && (
           <ApprovalQueue
@@ -445,6 +461,7 @@ export default function App() {
           <MultiPlatformComposer key={`${currentUser.id}:${editingPost?.id || "new"}`}
             initialPost={editingPost}
             onSaveDraft={handleSaveDraft}
+            onDeleteDraft={handleDeleteDraft}
             onSubmitForApproval={handleSubmitForApproval}
             onPublishDirect={handlePublishDirect}
             onSchedulePost={handleSchedulePost}
@@ -498,6 +515,7 @@ export default function App() {
           />
         )}
       </main>
+      </div>
 
       {/* Social Media Connections Modal */}
       <SocialConnectionModal

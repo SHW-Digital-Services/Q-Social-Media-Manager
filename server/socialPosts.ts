@@ -45,7 +45,9 @@ export async function readFacebookPosts(req: Request) {
     published = await read(`${graph}/${page.id}/published_posts?fields=id,message,created_time,reactions.limit(0).summary(true),comments.limit(0).summary(true),shares&limit=100`, page.access_token);
   } catch (error) {
     measured = false;
-    warnings.push(`Facebook interaction counts are unavailable: ${(error as Error).message} Reconnect and grant pages_read_engagement.`);
+    const detail = (error as Error).message;
+    const permission = detail.includes('pages_read_user_content') ? 'pages_read_user_content' : 'pages_read_engagement';
+    warnings.push(`Facebook interaction counts are unavailable: ${detail} If this is a permission error, enable ${permission} for the Meta app, then reconnect Facebook and grant it for the selected Page. Reconnecting alone cannot resolve missing app access.`);
     published = await read(`${graph}/${page.id}/published_posts?fields=id,message,created_time&limit=100`, page.access_token);
   }
   let scheduled: any = { data: [] };

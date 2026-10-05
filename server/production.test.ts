@@ -33,6 +33,8 @@ test('production routes reject unauthenticated access and scheduler calls',async
  assert.equal((await fetch(base+'/api/cron/publish')).status,401);
  assert.equal((await fetch(base+'/api/auth/session',{method:'POST',headers:{Origin:base}})).status,401);
  assert.equal((await fetch(base+'/api/posts/new',{method:'PUT',headers:{Origin:'https://attacker.example'}})).status,403);
+ assert.equal((await fetch(base+'/api/posts/new',{method:'DELETE',headers:{Origin:base}})).status,401);
+ assert.equal((await fetch(base+'/api/posts/new',{method:'DELETE',headers:{Origin:'https://attacker.example'}})).status,403);
  assert.equal((await fetch(base+'/api/health')).status,200);}
  finally{await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });

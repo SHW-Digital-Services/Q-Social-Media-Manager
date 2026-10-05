@@ -61,6 +61,20 @@ export async function loadPosts(id?: string) {
 }
 export function registerPostRoutes(app: Express) {
   app.get('/api/posts',async (_req,res)=>{try{res.json({posts:await loadPosts()});}catch(error){apiError(res,error);}});
+  app.delete('/api/posts/:id', async (req, res) => {
+    try {
+      if (!/^[a-zA-Z0-9_-]{1,100}$/.test(req.params.id)) throw new Error('Invalid post ID.');
+      const revision = req.body?.expectedRevision;
+      if (!Number.isInteger(revision) || revision < 1) throw new Error('A saved draft revision is required.');
+      const post = (await loadPosts(req.params.id))[0];
+      if (!post || post.revision !== revision) throw Object.assign(new Error('This post changed on another device. Refresh before deleting.'), { status: 409 });
+      if (post.status !== 'draft' || post.deliveryStates?.length) throw Object.assign(new Error('Only drafts without a publishing history can be deleted.'), { status: 409 });
+      const deleted = requireDatabase(await database().from('social_manager_posts').delete()
+        .eq('id', req.params.id).eq('revision', revision).eq('data->>status', 'draft').select('id'));
+      if (!deleted.length) throw Object.assign(new Error('This post changed on another device. Refresh before deleting.'), { status: 409 });
+      res.json({ deleted: true, id: req.params.id });
+    } catch (error) { apiError(res, error); }
+  });
   app.put('/api/posts/:id',async (req,res)=>{
     try {
       if(!/^[a-zA-Z0-9_-]{1,100}$/.test(req.params.id)) throw new Error('Invalid post ID.');

@@ -82,3 +82,25 @@ test('Facebook distinguishes revoked logins from Page selection problems', async
  globalThis.fetch=async()=>Response.json({data:[]});await assert.rejects(()=>readFacebookPosts({headers:{cookie}} as any),/No Facebook Pages were granted/);}
  finally{globalThis.fetch=original;}
 });
+
+test('Facebook comment permission errors recommend pages_read_user_content and preserve posts', async () => {
+  process.env.SOCIAL_SESSION_SECRET = 'synthetic-comment-read-secret-at-least-32-characters';
+  delete process.env.FACEBOOK_PAGE_ID; delete process.env.META_FACEBOOK_PAGE_ID;
+  let cookie = '';
+  saveSocialSession({ cookie: (name: string, value: string) => { cookie = `${name}=${value}`; } } as any, 'facebook', { access_token: 'synthetic-token', expires_in: 3600 });
+  const original = globalThis.fetch;
+  globalThis.fetch = async input => {
+    const url = String(input);
+    if (url.includes('me/accounts')) return Response.json({ data: [{ id: '123', name: 'Q', access_token: 'page-token' }] });
+    if (url.includes('comments.limit')) return Response.json({ error: { code: 10, message: "This endpoint requires the 'pages_read_user_content' permission." } }, { status: 403 });
+    if (url.includes('scheduled_posts')) return Response.json({ data: [] });
+    return Response.json({ data: [{ id: '123_p', message: 'Readable copy', created_time: '2026-10-05T10:00:00Z' }] });
+  };
+  try {
+    const posts = await readFacebookPosts({ headers: { cookie } } as any);
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].engagement, undefined);
+    assert.match(posts.warnings![0], /enable pages_read_user_content/);
+    assert.doesNotMatch(posts.warnings![0], /grant pages_read_engagement/);
+  } finally { globalThis.fetch = original; }
+});

@@ -89,9 +89,10 @@ export const Navigation: React.FC<NavigationProps> = ({
   ];
 
   return (
-    <div className="bg-white border-b border-slate-200 sticky top-[65px] z-30 shadow-2xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <nav className="flex space-x-1 overflow-x-auto py-2 scrollbar-none" aria-label="Tabs">
+    <aside className="w-full lg:w-64 lg:shrink-0 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 lg:sticky lg:top-[65px] lg:h-[calc(100vh-65px)] lg:overflow-y-auto z-30 shadow-2xs">
+      <div className="px-3 py-3 lg:py-6 lg:px-4">
+        <p className="hidden lg:block px-3 mb-3 text-[10px] font-mono font-semibold uppercase tracking-[0.16em] text-slate-400">Workspace</p>
+        <nav className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible scrollbar-none" aria-label="Workspace pages">
           {tabs.map(tab => {
             const isActive = activeTab === tab.key;
             return (
@@ -99,7 +100,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 key={tab.key}
                 onClick={() => onSelectTab(tab.key)}
                 className={`
-                  flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all cursor-pointer
+                  flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all cursor-pointer text-left
                   ${isActive 
                     ? 'bg-purple-50 text-purple-700 border border-purple-200 font-semibold shadow-2xs' 
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -109,7 +110,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <span className={isActive ? 'text-purple-600' : 'text-slate-400'}>
                   {tab.icon}
                 </span>
-                <span>{tab.label}</span>
+                <span className="flex-1">{tab.label}</span>
                 {tab.badge && (
                   <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none ${tab.badgeColor || 'bg-slate-100 text-slate-700'}`}>
                     {tab.badge}
@@ -120,6 +121,6 @@ export const Navigation: React.FC<NavigationProps> = ({
           })}
         </nav>
       </div>
-    </div>
+    </aside>
   );
 };

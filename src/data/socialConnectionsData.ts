@@ -23,7 +23,7 @@ export const INITIAL_SOCIAL_CONNECTIONS: SocialAccountConnection[] = [
     avatarUrl: 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&w=150&q=80',
     accountType: 'organization',
     isConnected: false,
-    scopes: ['pages_manage_posts', 'pages_read_engagement', 'pages_show_list'],
+    scopes: ['pages_manage_posts', 'pages_read_engagement', 'pages_read_user_content', 'pages_show_list'],
     webhookActive: false,
     apiHealth: 'disconnected'
   },
