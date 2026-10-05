@@ -381,6 +381,15 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   }
 ];
 
+export const BRAND_CAMPAIGN_PILLARS = [
+  'General Wellbeing 2026',
+  'Fall Wellbeing Series',
+  'Always-On Safety Lifelines',
+  'Privacy & Architecture Pillar',
+  'Awareness Days 2026',
+  'Pride & Joy 365',
+] as const;
+
 export const INITIAL_POSTS: PostItem[] = [
   {
     id: 'post-101',

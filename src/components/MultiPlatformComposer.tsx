@@ -2,7 +2,7 @@ import { apiFetch } from '../lib/supabase';
 import { localDateTime } from '../utils/postDates';
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { PostItem, SocialPlatform } from '../types';
-import { PLATFORM_SPECS, Q_LOGO_URL } from '../data/brandData';
+import { BRAND_CAMPAIGN_PILLARS, PLATFORM_SPECS, Q_LOGO_URL } from '../data/brandData';
 import { QLogo } from './QLogo';
 import { MediaEditorModal } from './MediaEditorModal';
 import { SocialPlatformBrandIcon } from './SocialPlatformBrandIcon';
@@ -67,6 +67,14 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
   const [previewPlatform, setPreviewPlatform] = useState<SocialPlatform>('facebook');
   const [mediaUrls, setMediaUrls] = useState<string[]>(startingPost?.mediaUrls || [Q_LOGO_URL]);
   const [campaign, setCampaign] = useState(startingPost?.campaign || 'General Wellbeing 2026');
+  const [customCampaignPillars, setCustomCampaignPillars] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(`q-social-campaign-pillars:${currentUser?.id}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
+  const [isAddingCampaignPillar, setIsAddingCampaignPillar] = useState(false);
+  const [newCampaignPillar, setNewCampaignPillar] = useState('');
   const [saveError, setSaveError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const canDeleteDraft = !initialPost?.revision || (initialPost.status === 'draft' && !initialPost.deliveryStates?.length);
@@ -100,6 +108,26 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
     try { localStorage.setItem(draftKey, JSON.stringify({title,content,platforms:selectedPlatforms,mediaUrls,campaign,tags,scheduledFor:scheduledDateTime && Number.isFinite(new Date(scheduledDateTime).getTime()) ? new Date(scheduledDateTime).toISOString() : null})); }
     catch { setSaveError('This browser cannot keep a recovery copy. Save the draft to the shared queue before leaving.'); }
   }, [draftKey,title,content,selectedPlatforms,mediaUrls,campaign,tags,scheduledDateTime]);
+
+  useEffect(() => {
+    try { localStorage.setItem(`q-social-campaign-pillars:${currentUser?.id}`, JSON.stringify(customCampaignPillars)); }
+    catch { /* Browser storage is best-effort. */ }
+  }, [currentUser?.id, customCampaignPillars]);
+
+  const campaignPillars = Array.from(new Set([
+    ...BRAND_CAMPAIGN_PILLARS,
+    ...customCampaignPillars,
+    ...(campaign && !BRAND_CAMPAIGN_PILLARS.includes(campaign as typeof BRAND_CAMPAIGN_PILLARS[number]) ? [campaign] : []),
+  ]));
+
+  const handleAddCampaignPillar = () => {
+    const value = newCampaignPillar.trim();
+    if (!value) return;
+    setCustomCampaignPillars(previous => previous.includes(value) ? previous : [...previous, value]);
+    setCampaign(value);
+    setNewCampaignPillar('');
+    setIsAddingCampaignPillar(false);
+  };
 
   // Run local pre-screening on text change
   useEffect(() => {
@@ -343,13 +371,34 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
               <label className="text-xs font-semibold text-slate-700 block">
                 Brand Campaign Pillar
               </label>
-              <input 
-                type="text"
+              <select
                 value={campaign}
-                onChange={(e) => setCampaign(e.target.value)}
-                placeholder="E.g. Safe Reflection 2026"
+                onChange={(e) => {
+                  if (e.target.value === '__add_campaign_pillar') {
+                    setIsAddingCampaignPillar(true);
+                    return;
+                  }
+                  setCampaign(e.target.value);
+                }}
                 className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:border-purple-500 transition-colors font-medium text-slate-900"
-              />
+              >
+                {campaignPillars.map((pillar) => <option key={pillar} value={pillar}>{pillar}</option>)}
+                <option value="__add_campaign_pillar">＋ Add a brand campaign pillar…</option>
+              </select>
+              {isAddingCampaignPillar && (
+                <div className="flex gap-2 pt-1">
+                  <input
+                    type="text"
+                    autoFocus
+                    value={newCampaignPillar}
+                    onChange={(e) => setNewCampaignPillar(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddCampaignPillar(); }}
+                    placeholder="E.g. Safe Reflection 2026"
+                    className="min-w-0 flex-1 text-xs px-3 py-2 rounded-lg border border-purple-200 bg-white focus:outline-none focus:border-purple-500 font-medium text-slate-900"
+                  />
+                  <button type="button" onClick={handleAddCampaignPillar} className="shrink-0 rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white hover:bg-purple-700">Add</button>
+                </div>
+              )}
             </div>
           </div>
 

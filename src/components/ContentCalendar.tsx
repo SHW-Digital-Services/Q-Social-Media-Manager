@@ -131,7 +131,15 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
 
   // Filter posts
   const filteredPosts = useMemo(() => {
-    return posts.filter(p => {
+    const latestById = new Map<string, PostItem>();
+    posts.forEach(post => {
+      const existing = latestById.get(post.id);
+      if (!existing || (post.revision || 0) > (existing.revision || 0) || new Date(post.lastModified).getTime() > new Date(existing.lastModified).getTime()) {
+        latestById.set(post.id, post);
+      }
+    });
+
+    return Array.from(latestById.values()).filter(p => {
       if (platformFilter !== 'all' && !p.platforms.includes(platformFilter as SocialPlatform)) {
         return false;
       }

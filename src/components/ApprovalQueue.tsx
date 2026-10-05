@@ -26,7 +26,8 @@ import {
   Lock,
   ShieldCheck,
   Plus,
-  Crown
+  Crown,
+  ChevronDown
 } from 'lucide-react';
 
 interface ApprovalQueueProps {
@@ -72,6 +73,7 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [showEngagementInsights, setShowEngagementInsights] = useState(true);
+  const [expandedVersionPosts, setExpandedVersionPosts] = useState<Record<string, boolean>>({});
 
   // Change request modal state
   const [rejectModalPostId, setRejectModalPostId] = useState<string | null>(null);
@@ -336,6 +338,9 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
               const audit = post.complianceAudit;
               const isApproved = post.status === 'approved' || post.status === 'scheduled';
               const isPending = post.status === 'pending_approval';
+              const versions = post.versionHistory || [];
+              const hasVersions = versions.length > 1;
+              const versionsExpanded = Boolean(expandedVersionPosts[post.id]);
 
               return (
                 <div 
@@ -394,6 +399,48 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                       </button>
                     </div>
                   </div>
+
+                  {hasVersions && (
+                    <div className="rounded-2xl border border-purple-100 bg-purple-50/40 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedVersionPosts(previous => ({ ...previous, [post.id]: !versionsExpanded }))}
+                        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-purple-50 transition-colors cursor-pointer"
+                        aria-expanded={versionsExpanded}
+                      >
+                        <span className="flex items-center gap-2 text-xs font-semibold text-purple-900">
+                          <History className="w-3.5 h-3.5 text-purple-600" />
+                          <span>{versions.length} versions of this post</span>
+                          <span className="font-mono text-[10px] text-purple-600">{post.currentVersion || versions[0]?.versionNumber}</span>
+                        </span>
+                        <ChevronDown className={`w-4 h-4 text-purple-500 transition-transform ${versionsExpanded ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {versionsExpanded && (
+                        <div className="border-t border-purple-100 divide-y divide-purple-100 bg-white/70">
+                          {versions.map((version) => {
+                            const isCurrentVersion = version.versionNumber === (post.currentVersion || versions[0]?.versionNumber);
+                            return (
+                              <div key={version.versionId} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-xs">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className={`shrink-0 rounded-full px-2 py-0.5 font-mono font-semibold ${isCurrentVersion ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                                    {version.versionNumber}
+                                  </span>
+                                  <span className="truncate text-slate-700">{version.changesSummary}</span>
+                                </div>
+                                <span className="shrink-0 text-[11px] text-slate-400">{version.modifiedBy}</span>
+                              </div>
+                            );
+                          })}
+                          <div className="px-4 py-2.5">
+                            <button type="button" onClick={() => onOpenVersionHistory(post)} className="text-[11px] font-semibold text-purple-700 hover:text-purple-900 cursor-pointer">
+                              Open full version history and revert options →
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Middle: Title & Content Preview */}
                   <div className="space-y-2">
