@@ -16,11 +16,5 @@
     "api/index.ts": {
       "maxDuration": 300
     }
-  },
-  "crons": [
-    {
-      "path": "/api/cron/publish",
-      "schedule": "* * * * *"
-    }
-  ]
+  }
 }
