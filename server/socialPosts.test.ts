@@ -7,7 +7,7 @@ import { localDateKey, localDateTime } from '../src/utils/postDates.js';
 
 test('native Facebook scheduling confirms the remote post and never publishes immediately', async () => {
   process.env.SOCIAL_SESSION_SECRET = 'synthetic-schedule-secret-at-least-32-characters';
-  delete process.env.FACEBOOK_PAGE_ID;
+  delete process.env.FACEBOOK_PAGE_ID; delete process.env.META_FACEBOOK_PAGE_ID;
   let cookie = '';
   saveSocialSession({ cookie: (name: string, value: string) => { cookie = `${name}=${value}`; } } as any, 'facebook', { access_token: 'synthetic-token', expires_in: 3600 });
   const req = { headers: { cookie } } as any;
@@ -60,4 +60,25 @@ test('calendar keys and composer values retain local dates across midnight and m
   assert.equal(localDateKey(date), '2026-10-01');
   assert.equal(localDateTime(date), '2026-10-01T00:15');
   assert.equal(platformPost('bluesky', 'uri', 'Hello', date.toISOString(), 'Test').scheduledFor, null);
+});
+
+
+test('Facebook retains readable posts when reaction or scheduling permissions fail', async () => {
+ process.env.SOCIAL_SESSION_SECRET='synthetic-partial-read-secret-at-least-32-characters';
+ delete process.env.FACEBOOK_PAGE_ID;delete process.env.META_FACEBOOK_PAGE_ID;
+ let cookie='';saveSocialSession({cookie:(name:string,value:string)=>{cookie=`${name}=${value}`;}} as any,'facebook',{access_token:'synthetic-token',expires_in:3600});
+ const original=globalThis.fetch;
+ globalThis.fetch=async input=>{const url=String(input);if(url.includes('me/accounts'))return Response.json({data:[{id:'123',name:'Q',access_token:'page-token'}]});
+ if(url.includes('reactions')||url.includes('scheduled_posts'))return Response.json({error:{code:10,message:'Missing Page permission'}},{status:403});
+ return Response.json({data:[{id:'123_p',message:'Readable copy',created_time:'2026-10-05T10:00:00Z'}]});};
+ try{const posts=await readFacebookPosts({headers:{cookie}} as any);assert.equal(posts.length,1);assert.equal(posts[0].engagement,undefined);assert.equal(posts.warnings?.length,2);assert.match(posts.warnings![0],/Facebook code 10/);}
+ finally{globalThis.fetch=original;}
+});
+
+test('Facebook distinguishes revoked logins from Page selection problems', async()=>{
+ process.env.SOCIAL_SESSION_SECRET='synthetic-revoked-read-secret-at-least-32-characters';let cookie='';saveSocialSession({cookie:(name:string,value:string)=>{cookie=`${name}=${value}`;}} as any,'facebook',{access_token:'synthetic-token',expires_in:3600});
+ const original=globalThis.fetch;
+ try{globalThis.fetch=async()=>Response.json({error:{code:190,message:'Expired token'}},{status:400});await assert.rejects(()=>readFacebookPosts({headers:{cookie}} as any),/expired or was revoked/);
+ globalThis.fetch=async()=>Response.json({data:[]});await assert.rejects(()=>readFacebookPosts({headers:{cookie}} as any),/No Facebook Pages were granted/);}
+ finally{globalThis.fetch=original;}
 });

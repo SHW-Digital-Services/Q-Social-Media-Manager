@@ -33,8 +33,9 @@ interface ApprovalQueueProps {
   posts: PostItem[];
   platformReadError?: string;
   engagementPosts?: PostItem[];
+  onCancelSchedule: (postId: string) => Promise<void>;
   onScheduleNewPost: (date: string) => void;
-  onReschedulePost: (postId: string, date: string) => void;
+  onReschedulePost: (postId: string, date: string) => Promise<void>;
   onApprovePost: (postId: string) => void;
   onRequestChanges: (postId: string, feedback: string) => void;
   onPublishNow: (postId: string) => void;
@@ -51,6 +52,7 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
   posts,
   platformReadError,
   engagementPosts,
+  onCancelSchedule,
   onScheduleNewPost,
   onReschedulePost,
   onApprovePost,
@@ -470,6 +472,8 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                       )}
                     </div>
 
+                    {post.deliveryStates?.filter(delivery => delivery.error).map(delivery => <p key={delivery.platform} role="alert" className="text-xs text-rose-700">{delivery.platform}: {delivery.error}</p>)}
+                    {post.status === 'scheduled' && !post.source && isLeadApprover && <button onClick={() => onCancelSchedule(post.id)} className="text-xs text-rose-700">Cancel schedule</button>}
                     {/* Action Buttons */}
                     <div className="flex items-center gap-2">
                       {/* Comments / Collab drawer trigger */}
@@ -501,7 +505,7 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                       </button>
 
                       {/* Request Changes button */}
-                      {post.status !== 'published' && (
+                      {isLeadApprover && !post.source && post.status !== 'published' && post.status !== 'scheduled' && (
                         <button
                           onClick={() => setRejectModalPostId(post.id)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
@@ -534,7 +538,7 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                       )}
 
                       {isApproved && (
-                        post.platforms.includes('website') && !isLeadApprover ? (
+                        !isLeadApprover ? (
                           <div
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed"
                             title="Website broadcast requires Owner (scott@q-ai.online) sign-off"

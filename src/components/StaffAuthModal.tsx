@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StaffUser, verifySupabaseStaffAccess, getSupabaseClient, SUPABASE_PROJECT_REF } from '../lib/supabase';
+import { StaffUser, signInStaff, SUPABASE_PROJECT_REF } from '../lib/supabase';
 import { Q_LOGO_URL } from '../data/brandData';
 import { 
   ShieldCheck, 
@@ -39,43 +39,7 @@ export const StaffAuthModal: React.FC<StaffAuthModalProps> = ({
     setErrorMsg(null);
 
     try {
-      // First check authorization policy
-      const verification = verifySupabaseStaffAccess(email);
-      if (!verification.authorized) {
-        setErrorMsg(verification.error || 'Access Denied: Account is not authorized in Supabase Auth policies.');
-        setLoading(false);
-        return;
-      }
-
-      const supabase = getSupabaseClient();
-      if (supabase && password) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-        if (error) {
-          console.warn('Supabase auth notice:', error.message);
-        } else if (data.user) {
-          const user: StaffUser = {
-            id: data.user.id,
-            email: data.user.email || email,
-            name: verification.user?.name || email.split('@')[0],
-            role: verification.user?.role || 'admin',
-            title: verification.user?.title || 'Lead Approver',
-            avatar: verification.user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-            isStaffOnly: true
-          };
-          confetti({ particleCount: 70, spread: 60 });
-          onSuccess(user);
-          setLoading(false);
-          return;
-        }
-      }
-
-      if (verification.user) {
-        confetti({ particleCount: 70, spread: 60 });
-        onSuccess(verification.user);
-      }
+      onSuccess(await signInStaff(email,password));
     } catch (err: any) {
       setErrorMsg(err?.message || 'Authentication error.');
     } finally {

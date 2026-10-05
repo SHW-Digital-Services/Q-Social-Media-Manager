@@ -5,7 +5,8 @@ import http from 'node:http';
 test('rewrite recovers from AI failure and broadcast explains disconnected channels', async () => {
   process.env.VERCEL = '1';
   process.env.GEMINI_API_KEY = 'synthetic-invalid-key';
-  const { default: handler } = await import('../server.js');
+  const { providerTestApp } = await import('./testApp.js');
+  const handler=await providerTestApp();
   const server = http.createServer(handler as unknown as http.RequestListener);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as any).port}`;

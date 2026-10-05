@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StaffUser, verifySupabaseStaffAccess } from '../lib/supabase';
+import { StaffUser, signInStaff, getSupabaseClient } from '../lib/supabase';
 import { QLogo } from './QLogo';
 import { 
   ShieldCheck, 
@@ -23,7 +23,7 @@ interface LoginPageProps {
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('scott@q-ai.online');
-  const [password, setPassword] = useState('••••••••••••');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,32 +34,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setIsLoading(true);
-
-    setTimeout(() => {
-      const verification = verifySupabaseStaffAccess(email);
-
-      if (verification.authorized && verification.user) {
-        setIsLoading(false);
-        onLoginSuccess(verification.user);
-      } else {
-        setIsLoading(false);
-        setError(verification.error || 'Access restricted. User not found in active Supabase Auth directory.');
-      }
-    }, 500);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();setError(null);setIsLoading(true);
+    try { onLoginSuccess(await signInStaff(email,password)); }
+    catch(error) { setError((error as Error).message); }
+    finally { setIsLoading(false); }
   };
-
-  const handleSendPasswordReset = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!resetEmail.trim()) return;
-    setResetLoading(true);
-    setTimeout(() => {
-      setResetLoading(false);
-      setResetSent(true);
-    }, 800);
+  const handleSendPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();if(!resetEmail.trim())return;
+    setResetLoading(true);setError(null);
+    try {
+      const client=getSupabaseClient();if(!client)throw new Error('Authentication is unavailable.');
+      const {error}=await client.auth.resetPasswordForEmail(resetEmail.trim(),{redirectTo:window.location.origin});
+      if(error)throw error;setResetSent(true);
+    }catch(error){setError((error as Error).message);}
+    finally{setResetLoading(false);}
   };
 
   return (
@@ -104,6 +93,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         {/* Main Card */}
         <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl p-7 shadow-2xl shadow-purple-950/50 relative">
           
+          {isResetView && error && <p role="alert" className="text-rose-300 text-sm mb-3">{error}</p>}
           {!isResetView ? (
             /* Login Form */
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -293,9 +283,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         <div className="text-center space-y-1 text-[11px] text-slate-400">
           <div className="flex items-center justify-center gap-2">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>End-to-End PII Shield Active</span>
+            <span>Staff access protected</span>
             <span>•</span>
-            <span>WCAG 2.2 Compliant</span>
+            <span>Secure sign-in</span>
           </div>
           <p>© 2026 Q Intelligence Foundation. All rights reserved.</p>
         </div>

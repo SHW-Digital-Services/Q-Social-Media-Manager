@@ -18,7 +18,7 @@ export async function publishFacebook(req: Request, payload: { content?: string;
     if (schedule && (!Number.isFinite(scheduledTime) || scheduledTime < Date.now() + 10 * 60000 || scheduledTime > Date.now() + 29 * 86400000)) return fail('Choose a Facebook schedule between 10 minutes and 29 days from now.');
     const accounts = await graph('me/accounts?fields=id,name,access_token,tasks&limit=100', session.access_token);
     const pages = (accounts.data || []).filter((page: any) => /^\d+$/.test(page.id) && typeof page.access_token === 'string' && (!page.tasks || page.tasks.includes('CREATE_CONTENT') || page.tasks.includes('MANAGE')));
-    const page = process.env.FACEBOOK_PAGE_ID ? pages.find((item: any) => item.id === process.env.FACEBOOK_PAGE_ID) : pages.length === 1 ? pages[0] : null;
+    const page = (process.env.FACEBOOK_PAGE_ID || process.env.META_FACEBOOK_PAGE_ID) ? pages.find((item: any) => item.id === (process.env.FACEBOOK_PAGE_ID || process.env.META_FACEBOOK_PAGE_ID)) : pages.length === 1 ? pages[0] : null;
     if (!page) return fail(pages.length > 1 ? 'Several Facebook Pages are available. Set FACEBOOK_PAGE_ID to the intended Page ID.' : 'Facebook did not grant publishing access to the requested Page. Reconnect and grant Page permissions.');
     if ((payload.mediaUrls?.length || 0) > 10) return fail('Facebook supports at most ten images per broadcast.');
     // Validate and download every image before uploading any of them.

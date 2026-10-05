@@ -1,3 +1,7 @@
+import { authenticate, registerStaffRoutes, requireApprover } from './server/staffAuth.js';
+import { sharedConnections } from './server/sharedConnections.js';
+import { registerPostRoutes } from './server/posts.js';
+import { registerPublishingWorker } from './server/publishingWorker.js';
 import { registerSocialPostRoutes } from './server/socialPosts.js';
 import { publishFacebook } from './server/facebook.js';
 import { registerWebsiteRoutes, publishWebsite } from './server/website.js';
@@ -150,7 +154,7 @@ function buildOAuthStartResult(platform: string, req: express.Request, res: expr
   };
 }
 
-function requirePublishFields(payload: PublishRequest): string | null {
+export function requirePublishFields(payload: PublishRequest): string | null {
   if (!payload || typeof payload !== 'object') return 'A post payload is required.';
   if (!payload.content || typeof payload.content !== 'string' || payload.content.trim().length === 0) {
     return 'Post content is required before publishing.';
@@ -163,7 +167,7 @@ function requirePublishFields(payload: PublishRequest): string | null {
   return null;
 }
 
-async function publishToPlatform(platform: SocialPlatform, payload: PublishRequest, req: express.Request, res: express.Response): Promise<PublishResult> {
+export async function publishToPlatform(platform: SocialPlatform, payload: PublishRequest, req: express.Request, res: express.Response): Promise<PublishResult> {
   if (platform === 'bluesky') {
     try { return await publishBluesky(req, res, payload); }
     catch (error) { return { platform, status: 'failed', message: (error as Error).message }; }
@@ -226,9 +230,16 @@ WE ARE NOT:
 4. Diagnostic: The AI or brand NEVER diagnoses psychological conditions; it only observes, reflects, and supports.
 `;
 
-async function createApp() {
+export async function createApp(options: { authenticate?: express.RequestHandler; connections?: express.RequestHandler } = {}) {
   const app = express();
+  app.disable('x-powered-by');
   app.use(express.json({ limit: '10mb' }));
+  app.use('/api', (_req, res, next) => { res.set('Cache-Control', 'no-store'); res.set('X-Content-Type-Options', 'nosniff'); next(); });
+  app.use('/api', options.authenticate || authenticate);
+  app.use('/api', options.connections || sharedConnections);
+  registerStaffRoutes(app);
+  registerPostRoutes(app);
+  registerPublishingWorker(app);
   registerBlueskyRoutes(app);
   registerWebsiteRoutes(app);
   registerSocialPostRoutes(app);
@@ -330,6 +341,7 @@ async function createApp() {
       });
 
       const tokenResponse = await fetch(setup.tokenUrl, {
+        signal: AbortSignal.timeout(20000), redirect: 'error',
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body,
@@ -338,8 +350,7 @@ async function createApp() {
 
       if (!tokenResponse.ok) {
         return res.status(tokenResponse.status).json({
-          error: `${setup.label} token exchange failed.`,
-          providerResponse: tokenBody,
+          error: `${setup.label} token exchange failed. Start the connection again.`,
         });
       }
 
@@ -373,52 +384,7 @@ async function createApp() {
     }
   });
 
-  app.post('/api/schedule/facebook', async (req, res) => {
-    if (!isBlueskySameOrigin(req)) return res.status(403).json({ error: 'Scheduling must be requested from this website.' });
-    const payload = req.body as PublishRequest;
-    const validationError = requirePublishFields(payload);
-    if (validationError || payload.platforms?.length !== 1 || payload.platforms[0] !== 'facebook') return res.status(400).json({ error: validationError || 'Native scheduling currently supports Facebook only.' });
-    const result = await publishFacebook(req, payload, true);
-    res.status(result.status === 'published' ? 200 : 409).json({ success: result.status === 'published', result, error: result.status === 'published' ? undefined : result.message });
-  });
-
-  app.post('/api/publish/broadcast', async (req, res) => {
-    try {
-      if (!isBlueskySameOrigin(req)) return res.status(403).json({ error: 'Publishing must be requested from this website.' });
-      const payload = req.body as PublishRequest;
-      const validationError = requirePublishFields(payload);
-      if (validationError) {
-        return res.status(400).json({ error: validationError });
-      }
-
-      const results = await Promise.all(
-        payload.platforms!.map(platform => publishToPlatform(platform, payload, req, res))
-      );
-      const published = results.filter(result => result.status === 'published');
-      const failed = results.filter(result => result.status !== 'published');
-
-      if (failed.length > 0) {
-        console.error(JSON.stringify({ event: 'broadcast_failed', requestId: req.get('x-vercel-id'), publishedPlatforms: published.map(result => result.platform), failedPlatforms: failed.map(result => ({ platform: result.platform, status: result.status, message: result.message })) }));
-        return res.status(failed.some(result => result.status === 'failed') ? 502 : 409).json({
-          success: false,
-          message: published.length > 0 ? 'Some channels published successfully; others failed.' : 'Publishing could not complete.',
-          publishedCount: published.length,
-          failedCount: failed.length,
-          results,
-        });
-      }
-
-      res.json({
-        success: true,
-        message: 'Broadcast published through configured backend providers.',
-        publishedAt: new Date().toISOString(),
-        results,
-      });
-    } catch (err: any) {
-      console.error('Broadcast publish error:', err);
-      res.status(500).json({ error: err.message || 'Broadcast publish failed.' });
-    }
-  });
+  app.post(['/api/schedule/facebook','/api/publish/broadcast'], (_req,res) => res.status(410).json({error:'Save and approve the post, then publish or schedule through the queue.'}));
 
   // Compliance Audit Endpoint
   app.post('/api/compliance/audit', async (req, res) => {
@@ -696,47 +662,8 @@ Guidelines to apply:
   });
 
   // In-memory version history cache with Supabase sync support
-  const postVersionStore = new Map<string, any[]>();
-  const assetVersionStore = new Map<string, any[]>();
-
-  // Fetch versions for a post
-  app.get('/api/posts/versions/:postId', (req, res) => {
-    const { postId } = req.params;
-    const versions = postVersionStore.get(postId) || [];
-    res.json({ postId, versions });
-  });
-
-  // Record a new version for a post
-  app.post('/api/posts/versions/:postId', (req, res) => {
-    const { postId } = req.params;
-    const version = req.body;
-    if (!version) {
-      return res.status(400).json({ error: 'Version data is required.' });
-    }
-    const current = postVersionStore.get(postId) || [];
-    const updated = [version, ...current];
-    postVersionStore.set(postId, updated);
-    res.json({ success: true, postId, totalVersions: updated.length, version });
-  });
-
-  // Fetch versions for an asset
-  app.get('/api/assets/versions/:assetId', (req, res) => {
-    const { assetId } = req.params;
-    const versions = assetVersionStore.get(assetId) || [];
-    res.json({ assetId, versions });
-  });
-
-  // Record a new version for an asset
-  app.post('/api/assets/versions/:assetId', (req, res) => {
-    const { assetId } = req.params;
-    const version = req.body;
-    if (!version) {
-      return res.status(400).json({ error: 'Asset version data is required.' });
-    }
-    const current = assetVersionStore.get(assetId) || [];
-    const updated = [version, ...current];
-    assetVersionStore.set(assetId, updated);
-    res.json({ success: true, assetId, totalVersions: updated.length, version });
+  app.get('/api/posts/versions/:postId', async (req,res) => {
+    try { const {loadPosts}=await import('./server/posts.js'); const post=(await loadPosts(req.params.postId))[0]; res.json({postId:req.params.postId,versions:post?.versionHistory||[]}); } catch {res.status(503).json({error:'Version history could not be loaded.'});}
   });
 
   // Vercel serves the frontend separately; this function handles API requests only.

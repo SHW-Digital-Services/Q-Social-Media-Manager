@@ -9,7 +9,8 @@ test('social logins survive a fresh process and validate state, expiry and disco
   process.env.APP_URL = 'https://social.q-ai.online';
   process.env.SOCIAL_SESSION_SECRET = 'synthetic-test-encryption-secret-over-32-characters';
   process.env.META_APP_ID = 'test-app'; process.env.META_APP_SECRET = 'test-secret';
-  const { default: handler } = await import('../server.js');
+  const { providerTestApp } = await import('./testApp.js');
+  const handler=await providerTestApp();
   const actualFetch = globalThis.fetch;
   const calls: string[] = [];
   let failLongToken = false;

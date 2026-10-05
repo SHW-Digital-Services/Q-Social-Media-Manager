@@ -5,7 +5,7 @@ import { saveSocialSession } from './socialSessions.js';
 
 test('Facebook resolves Page tokens, uploads images and refuses ambiguous Pages', async () => {
   process.env.SOCIAL_SESSION_SECRET = 'synthetic-facebook-secret-at-least-32-characters';
-  delete process.env.FACEBOOK_PAGE_ID;
+  delete process.env.FACEBOOK_PAGE_ID; delete process.env.META_FACEBOOK_PAGE_ID;
   let cookie = '';
   saveSocialSession({ cookie: (name: string, value: string) => { cookie = `${name}=${value}`; } } as any, 'facebook', { access_token: 'user-token', expires_in: 3600 });
   const req = { headers: { cookie } } as any;
@@ -32,5 +32,5 @@ test('Facebook resolves Page tokens, uploads images and refuses ambiguous Pages'
     assert.equal(uploads, 1); assert.equal(posts, 1);
     process.env.FACEBOOK_PAGE_ID = '123'; reject = true;
     assert.match((await publishFacebook(req, payload)).message, /Missing Page permission/);
-  } finally { globalThis.fetch = realFetch; delete process.env.FACEBOOK_PAGE_ID; }
+  } finally { globalThis.fetch = realFetch; delete process.env.FACEBOOK_PAGE_ID; delete process.env.META_FACEBOOK_PAGE_ID; }
 });

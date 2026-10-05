@@ -6,7 +6,8 @@ test('Removed providers are rejected and Q website publishing works through mana
   process.env.VERCEL = '1'; process.env.APP_URL = 'https://social.q-ai.online';
   process.env.SOCIAL_SESSION_SECRET = 'synthetic-test-secret-at-least-32-characters';
   process.env.LINKEDIN_CLIENT_ID = 'test-client'; process.env.LINKEDIN_CLIENT_SECRET = 'test-client-secret'; process.env.LINKEDIN_VERSION = '202609';
-  const { default: handler } = await import('../server.js');
+  const { providerTestApp } = await import('./testApp.js');
+  const handler=await providerTestApp();
   const actualFetch = globalThis.fetch;
   const calls: { url: string; body: any; headers: any }[] = [];
   let rejectProfile = false, rejectWebsite = false, failImage = false, failPublish = false;

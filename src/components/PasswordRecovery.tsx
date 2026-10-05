@@ -1,0 +1,6 @@
+import React,{useState} from 'react';
+import {getSupabaseClient} from '../lib/supabase';
+export function PasswordRecovery({onComplete}:{onComplete:()=>void}) {
+ const [password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+ return <main className="min-h-screen flex items-center justify-center bg-slate-950 text-white"><form className="p-8 space-y-4 max-w-md" onSubmit={async e=>{e.preventDefault();setBusy(true);setError('');try{const client=getSupabaseClient();if(!client)throw new Error('Authentication is unavailable.');const result=await client.auth.updateUser({password});if(result.error)throw result.error;await client.auth.signOut();onComplete();}catch(error){setError((error as Error).message);}finally{setBusy(false);}}}><h1 className="text-xl font-bold">Choose a new password</h1><label className="block">New password<input type="password" autoComplete="new-password" minLength={12} required value={password} onChange={e=>setPassword(e.target.value)} className="block bg-slate-800 p-3 rounded w-full" /></label>{error && <p role="alert">{error}</p>}<button disabled={busy} className="bg-purple-600 rounded px-4 py-2">{busy?'Saving…':'Save password and sign in'}</button></form></main>;
+}

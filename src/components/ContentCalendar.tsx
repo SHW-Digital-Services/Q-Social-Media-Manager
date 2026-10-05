@@ -30,7 +30,7 @@ interface ContentCalendarProps {
   onSelectPost: (post: PostItem) => void;
   onEditPost: (post: PostItem) => void;
   onScheduleNewPost: (dateStr: string) => void;
-  onReschedulePost: (postId: string, newDateStr: string) => void;
+  onReschedulePost: (postId: string, newDateStr: string) => Promise<void>;
   onOpenVersionHistory: (post: PostItem) => void;
 }
 
@@ -99,6 +99,8 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
   const [platformFilter, setPlatformFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [inspectedPost, setInspectedPost] = useState<PostItem | null>(null);
+  const [rescheduleError, setRescheduleError] = useState('');
+  const [rescheduleSaving, setRescheduleSaving] = useState(false);
   const [rescheduleDateInput, setRescheduleDateInput] = useState<string>('');
   const [showRescheduleModal, setShowRescheduleModal] = useState<boolean>(false);
 
@@ -254,17 +256,20 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
     setShowRescheduleModal(true);
   };
 
-  const handleSaveReschedule = () => {
+  const handleSaveReschedule = async () => {
     if (inspectedPost && rescheduleDateInput && Number.isFinite(new Date(rescheduleDateInput).getTime()) && new Date(rescheduleDateInput).getTime() > Date.now()) {
-      onReschedulePost(inspectedPost.id, new Date(rescheduleDateInput).toISOString());
+      setRescheduleSaving(true); setRescheduleError('');
+      try { await onReschedulePost(inspectedPost.id, new Date(rescheduleDateInput).toISOString());
       setShowRescheduleModal(false);
       setInspectedPost(prev => prev ? { ...prev, scheduledFor: new Date(rescheduleDateInput).toISOString() } : null);
+      } catch(error) { setRescheduleError((error as Error).message); } finally { setRescheduleSaving(false); }
     }
   };
 
   return (
     <div className="space-y-6">
       
+      {rescheduleError && <p id="reschedule-error" role="alert" className="text-sm text-rose-700">{rescheduleError}</p>}
       {/* Calendar Top Banner & Quick Controls */}
       <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -731,7 +736,7 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
 
             <input
               type="datetime-local"
-              value={rescheduleDateInput}
+              aria-describedby="reschedule-error" value={rescheduleDateInput}
               onChange={(e) => setRescheduleDateInput(e.target.value)}
               className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
@@ -746,7 +751,7 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
               </button>
               <button
                 type="button"
-                onClick={handleSaveReschedule}
+                disabled={rescheduleSaving} onClick={handleSaveReschedule}
                 className="px-4 py-1.5 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer shadow-xs"
               >
                 Save New Time

@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/supabase';
 import { SocialPlatform } from '../types';
 
 const OAUTH_SUPPORTED_PLATFORMS = new Set<SocialPlatform>([
@@ -45,7 +46,7 @@ export async function startOneClickSocialSignIn(platform: SocialPlatform): Promi
     };
   }
 
-  const response = await fetch(`/api/oauth/${platform}/start-url`, {
+  const response = await apiFetch(`/api/oauth/${platform}/start-url`, {
     headers: { Accept: 'application/json' },
   });
   const contentType = response.headers.get('content-type') || '';
@@ -73,7 +74,7 @@ export async function startOneClickSocialSignIn(platform: SocialPlatform): Promi
 
 export async function disconnectSocialSignIn(platform: SocialPlatform): Promise<void> {
   if (!OAUTH_SUPPORTED_PLATFORMS.has(platform) && platform !== 'website') return;
-  const response = await fetch(`/api/social/${platform}/disconnect`, { method: 'POST' });
+  const response = await apiFetch(`/api/social/${platform}/disconnect`, { method: 'POST' });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.error || 'The saved social login could not be removed.');

@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/supabase';
 import React, { useState } from 'react';
 import { PostItem, ComplianceAudit } from '../types';
 import { BRAND_COLORS, Q_LOGO_URL } from '../data/brandData';
@@ -113,7 +114,7 @@ export const ComplianceAuditor: React.FC<ComplianceAuditorProps> = ({
     if (!customText.trim()) return;
     setIsLoading(true);
     try {
-      const res = await fetch('/api/compliance/audit', {
+      const res = await apiFetch('/api/compliance/audit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -136,7 +137,7 @@ export const ComplianceAuditor: React.FC<ComplianceAuditorProps> = ({
     if (!customText.trim()) return;
     setIsLoading(true);
     try {
-      const res = await fetch('/api/compliance/rewrite', {
+      const res = await apiFetch('/api/compliance/rewrite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

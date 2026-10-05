@@ -113,7 +113,7 @@ export function registerBlueskyRoutes(app: Express) {
     } catch (error) { res.status(401).json({ error: (error as Error).message }); }
   });
 }
-export async function publishBluesky(req: Request, res: Response, payload: { content?: string; mediaUrls?: string[]; tags?: string[]; title?: string; postId?: string }) {
+export async function publishBluesky(req: Request, res: Response, payload: { content?: string; mediaUrls?: string[]; tags?: string[]; title?: string; postId?: string; recordKey?: string }) {
   if (!isBlueskySameOrigin(req)) throw new Error('Publishing must be requested from this website.');
   const text = [payload.content?.trim(), ...(payload.tags || [])].filter(Boolean).join('\n');
   if ([...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].length > 300 || Buffer.byteLength(text) > 3000) throw new Error('Bluesky posts must be at most 300 characters. Shorten the text or tags.');
@@ -139,7 +139,7 @@ export async function publishBluesky(req: Request, res: Response, payload: { con
     images.push({ alt: (payload.title || '').slice(0, 1000), image: data.blob });
   }
   const record = { $type: 'app.bsky.feed.post', text, createdAt: new Date().toISOString(), ...(images.length ? { embed: { $type: 'app.bsky.embed.images', images } } : {}) };
-  const data = await xrpc(session.service, 'com.atproto.repo.createRecord', { repo: session.did, collection: 'app.bsky.feed.post', record }, session.accessJwt);
+  const data = await xrpc(session.service, 'com.atproto.repo.createRecord', { repo: session.did, collection: 'app.bsky.feed.post', record, ...(payload.recordKey ? { rkey: payload.recordKey } : {}) }, session.accessJwt);
   if (!data.uri || !data.cid) throw new Error('Bluesky did not confirm the post.');
   return { platform: 'bluesky' as const, status: 'published' as const, message: 'Bluesky post published successfully.', remoteId: data.uri };
 }

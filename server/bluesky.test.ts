@@ -7,7 +7,8 @@ test('Bluesky connection, encryption, refresh, publishing and disconnect', async
   process.env.VERCEL = '1';
   process.env.APP_URL = 'https://social.q-ai.online';
   process.env.BLUESKY_SESSION_SECRET = 'test-secret-at-least-32-characters-long';
-  const { default: handler } = await import('../server.js');
+  const { providerTestApp } = await import('./testApp.js');
+  const handler=await providerTestApp();
   const actualFetch = globalThis.fetch;
   const calls: { url: string; body: any }[] = [];
   let failLogin = false;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PostItem, PostStatus, PostVersion, SocialAccountConnection } from './types';
 import { MOCK_POSTS, Q_LOGO_URL } from './data/brandData';
 import { INITIAL_SOCIAL_CONNECTIONS } from './data/socialConnectionsData';
@@ -14,38 +14,35 @@ import { DesignTemplatesStudio } from './components/DesignTemplatesStudio';
 import { CollaborationRoom } from './components/CollaborationRoom';
 import { SocialChannelsManager } from './components/SocialChannelsManager';
 import { SocialConnectionModal } from './components/SocialConnectionModal';
+import { PasswordRecovery } from './components/PasswordRecovery';
 import { LoginPage } from './components/LoginPage';
 import { VersionHistoryModal } from './components/VersionHistoryModal';
 import { StaffAuthModal } from './components/StaffAuthModal';
 import { StaffQuickGuideModal } from './components/StaffQuickGuideModal';
 import { QLogo } from './components/QLogo';
-import { AUTHORIZED_STAFF_ACCOUNTS, StaffUser } from './lib/supabase';
+import { AUTHORIZED_STAFF_ACCOUNTS, StaffUser, apiFetch, getSupabaseClient } from './lib/supabase';
 import { getSocialPlatformLabel } from './utils/socialOAuth';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Analytics } from '@vercel/analytics/react';
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<StaffUser | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('queue');
-  // Restore the saved local queue before rendering.
-  const [posts, updatePosts] = useState<PostItem[]>(() => {
-    try { const saved = JSON.parse(localStorage.getItem('q-social-posts-v1') || '[]'); return Array.isArray(saved) ? saved : []; } catch { return []; }
-  });
-  const postsRef = useRef(posts);
-  const setPosts = useCallback((action: React.SetStateAction<PostItem[]>) => {
-    const next = typeof action === 'function' ? action(postsRef.current) : action;
-    // Save before changing screens, so refresh cannot discard a submitted post.
-    localStorage.setItem('q-social-posts-v1', JSON.stringify(next));
-    postsRef.current = next;
-    updatePosts(next);
-  }, []);
+  const [posts, setPosts] = useState<PostItem[]>([]);
+  const [legacyDrafts,setLegacyDrafts]=useState<PostItem[]>(()=>{try{const value=JSON.parse(localStorage.getItem('q-social-posts-v1')||'[]');return Array.isArray(value)?value.filter(p=>p && !p.source && p.status!=='published' && typeof p.content==='string'):[];}catch{return [];}});
+  const [recoveringDrafts,setRecoveringDrafts]=useState(false);
+  const [queueError, setQueueError] = useState('');
+  const [passwordRecovery,setPasswordRecovery]=useState(window.location.hash.includes('type=recovery'));
+  const [authLoading, setAuthLoading] = useState(true);
   const [platformPosts, setPlatformPosts] = useState<PostItem[]>([]);
   const [platformReadError, setPlatformReadError] = useState('');
   useEffect(() => {
+    if(!currentUser)return;
     let active = true;
     const load = async () => {
       try {
-        const response = await fetch('/api/social/posts', { cache: 'no-store' });
+        const response = await apiFetch('/api/social/posts', { cache: 'no-store' });
         if (!response.ok) throw new Error('Platform posts could not be loaded.');
         const data = await response.json();
         if (active) { setPlatformPosts(data.posts || []); setPlatformReadError((data.errors || []).join(' ')); }
@@ -54,10 +51,10 @@ export default function App() {
     load();
     const timer = setInterval(load, 60000);
     return () => { active = false; clearInterval(timer); };
-  }, []);
+  }, [currentUser?.id]);
   const visiblePosts = [...posts.map(local => {
     const remote = platformPosts.find(p => p.remoteIds?.some(id => local.remoteIds?.includes(id)));
-    return remote ? { ...local, status: remote.status, publishedAt: remote.publishedAt, engagement: remote.engagement } : local;
+    return remote ? { ...local, engagement: remote.engagement } : local;
   }), ...platformPosts.filter(remote => !posts.some(local => local.remoteIds?.includes(remote.remoteIds?.[0] || remote.id)))];
   const [editingPost, setEditingPost] = useState<PostItem | null>(null);
   const [complianceAuditedPost, setComplianceAuditedPost] = useState<PostItem | null>(null);
@@ -66,21 +63,7 @@ export default function App() {
   const [socialConnections, setSocialConnections] = useState<SocialAccountConnection[]>(INITIAL_SOCIAL_CONNECTIONS);
   const [showSocialModal, setShowSocialModal] = useState<boolean>(false);
 
-  // Supabase Staff Authentication state (Starts with Login Page to fulfill login-only page requirement)
-  const [currentUser, setCurrentUser] = useState<StaffUser | null>(() => {
-    const saved = localStorage.getItem('q_intelligence_staff_user');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.email && !parsed.email.toLowerCase().includes('jordan') && !parsed.email.toLowerCase().includes('morgan')) {
-          return parsed;
-        }
-      } catch {
-        // ignore
-      }
-    }
-    return null;
-  });
+
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
 
   // Non-technical Staff Quick Guide modal
@@ -101,13 +84,14 @@ export default function App() {
   };
 
   useEffect(() => {
+    if(!currentUser)return;
     const params = new URLSearchParams(window.location.search);
     const isOAuthReturn = params.get('oauth') === 'success';
     let active = true;
 
     const connectedPlatform = params.get('platform');
 
-    fetch('/api/social/status', { cache: 'no-store' })
+    apiFetch('/api/social/status', { cache: 'no-store' })
       .then(response => { if (!response.ok) throw new Error('Connection status unavailable.'); return response.json(); })
       .then(status => {
         if (!active) return;
@@ -135,478 +119,73 @@ export default function App() {
         if (active && isOAuthReturn) window.history.replaceState({}, document.title, window.location.pathname);
       });
     return () => { active = false; };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    const client=getSupabaseClient();let active=true;
+    const check=async()=>{
+      try {
+        const response=await apiFetch('/api/auth/session',{method:'POST'});
+        const data=await response.json();if(active)setCurrentUser(response.ok?data.user:null);
+      }catch{if(active)setCurrentUser(null);}
+      finally{if(active)setAuthLoading(false);}
+    };
+    check();
+    const subscription=client?.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY')setPasswordRecovery(true);setTimeout(check,0);}).data.subscription;
+    return()=>{active=false;subscription?.unsubscribe();};
   }, []);
-
-  const publishBroadcast = async (postData: Partial<PostItem>, postId?: string) => {
-    const res = await fetch('/api/publish/broadcast', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        postId,
-        title: postData.title,
-        content: postData.content,
-        platforms: postData.platforms,
-        mediaUrls: postData.mediaUrls,
-        tags: postData.tags,
-        scheduledFor: postData.scheduledFor,
-        campaign: postData.campaign
-      })
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.success) {
-      const blockedPlatforms = Array.isArray(data.results)
-        ? data.results
-            .filter((result: any) => result.status !== 'published')
-            .map((result: any) => `${result.platform}: ${result.message || result.status}`)
-            .join(' ') 
-        : '';
-      throw new Error(
-        blockedPlatforms
-          ? `${data.message || 'Publishing setup is incomplete.'} ${blockedPlatforms}`
-          : data.message || data.error || 'Publishing failed.'
-      );
-    }
-
-    return data;
+  const acceptPost=(post:PostItem)=>setPosts(previous=>[post,...previous.filter(p=>p.id!==post.id)]);
+  useEffect(()=>{
+    if(!currentUser){setPosts([]);setPlatformPosts([]);return;}
+    let active=true;
+    const load=async()=>{try{const response=await apiFetch('/api/posts');const data=await response.json();if(!response.ok)throw new Error(data.error);if(active){setPosts(data.posts);setLegacyDrafts(previous=>previous.filter(draft=>!data.posts.some((p:PostItem)=>p.id===`recovered-${draft.id}`.slice(0,100))));setQueueError('');}}catch(error){if(active)setQueueError((error as Error).message);}};
+    load();const timer=setInterval(load,30000);return()=>{active=false;clearInterval(timer);};
+  },[currentUser?.id]);
+  const savePost=async(data:Partial<PostItem>,action:string,existing?:PostItem|null):Promise<PostItem>=>{
+    const id=existing?.id||data.id||crypto.randomUUID();
+    const response=await apiFetch(`/api/posts/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({data,action,expectedRevision:existing?.revision||0})});
+    const result=await response.json();if(!response.ok)throw new Error(result.error);acceptPost(result.post);return result.post;
   };
-
-  // Helper to record a version snapshot
-  const recordPostVersion = (
-    post: PostItem, 
-    changeSummary: string,
-    isMajor: boolean = false
-  ): PostItem => {
-    const history = post.versionHistory || [];
-    const currentNum = post.currentVersion || 'v1.0';
-    const numPart = parseFloat(currentNum.replace('v', '')) || 1.0;
-    const nextVersionNum = isMajor ? `v${Math.floor(numPart + 1)}.0` : `v${(numPart + 0.1).toFixed(1)}`;
-
-    const newSnapshot: PostVersion = {
-      versionId: `ver-${Date.now()}-${history.length + 1}`,
-      versionNumber: nextVersionNum,
-      timestamp: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
-      modifiedBy: currentUser?.name || 'Scott Harvey-Whittle',
-      author: currentUser?.name || 'Scott Harvey-Whittle',
-      authorRole: currentUser?.role === 'admin' ? 'Brand Admin' : 'Social Media Officer',
-      authorAvatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-      title: post.title,
-      content: post.content,
-      platforms: [...post.platforms],
-      mediaUrls: [...post.mediaUrls],
-      status: post.status,
-      complianceScore: post.complianceAudit?.score || 95,
-      changesSummary: changeSummary,
-      changeSummary,
-      contentSnapshot: post.content,
-      titleSnapshot: post.title,
-      platformsSnapshot: [...post.platforms],
-      mediaUrlsSnapshot: [...post.mediaUrls],
-      complianceScoreSnapshot: post.complianceAudit?.score || 95,
-      statusSnapshot: post.status
-    };
-
-    // Asynchronously cache version on backend
-    fetch(`/api/posts/versions/${post.id}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newSnapshot)
-    }).catch(err => console.warn('Version sync notification:', err));
-
-    return {
-      ...post,
-      currentVersion: nextVersionNum,
-      lastModified: new Date().toISOString(),
-      versionHistory: [newSnapshot, ...history]
-    };
+  const recoverLegacyDrafts=async()=>{
+    setRecoveringDrafts(true);try{for(const draft of legacyDrafts){await savePost({...draft,id:`recovered-${draft.id}`.slice(0,100),platforms:draft.platforms.filter(p=>['facebook','bluesky','website'].includes(p)),tags:draft.tags||[],mediaUrls:draft.mediaUrls||[]},'draft');setLegacyDrafts(previous=>previous.filter(p=>p.id!==draft.id));}showToast('Recovered browser posts as shared drafts for review.');}catch(error){showToast((error as Error).message,'warning');}finally{setRecoveringDrafts(false);}
   };
-
-  // Revert a post to a previous historical version
-  const handleRevertVersion = (postId: string, version: PostVersion) => {
-    setPosts(prev => prev.map(p => {
-      if (p.id === postId) {
-        const revertedTitle = version.title || version.titleSnapshot;
-        const revertedContent = version.content || version.contentSnapshot;
-        const revertedPlatforms = version.platforms || version.platformsSnapshot;
-        const revertedMedia = version.mediaUrls || version.mediaUrlsSnapshot;
-        const revertedStatus = version.status || version.statusSnapshot;
-        const revertedScore = version.complianceScore || version.complianceScoreSnapshot;
-
-        // Record the revert action itself in version history
-        const revertSnapshot: PostVersion = {
-          versionId: `ver-revert-${Date.now()}`,
-          versionNumber: `${version.versionNumber}-restored`,
-          timestamp: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
-          modifiedBy: currentUser?.name || 'Scott Harvey-Whittle',
-          author: currentUser?.name || 'Scott Harvey-Whittle',
-          authorRole: currentUser?.role === 'admin' ? 'Brand Admin' : 'Social Media Officer',
-          authorAvatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-          title: revertedTitle,
-          content: revertedContent,
-          platforms: [...revertedPlatforms],
-          mediaUrls: [...revertedMedia],
-          status: revertedStatus,
-          complianceScore: revertedScore,
-          changesSummary: `Reverted back to previous snapshot ${version.versionNumber} (${version.timestamp})`,
-          changeSummary: `Reverted back to previous snapshot ${version.versionNumber} (${version.timestamp})`,
-          contentSnapshot: revertedContent,
-          titleSnapshot: revertedTitle,
-          platformsSnapshot: [...revertedPlatforms],
-          mediaUrlsSnapshot: [...revertedMedia],
-          complianceScoreSnapshot: revertedScore,
-          statusSnapshot: revertedStatus
-        };
-
-        return {
-          ...p,
-          title: revertedTitle,
-          content: revertedContent,
-          platforms: [...revertedPlatforms],
-          mediaUrls: [...revertedMedia],
-          status: revertedStatus,
-          currentVersion: `${version.versionNumber} (Restored)`,
-          lastModified: new Date().toISOString(),
-          versionHistory: [revertSnapshot, ...(p.versionHistory || [])]
-        };
-      }
-      return p;
-    }));
-
-    setHistoryModalPost(null);
-    confetti({ particleCount: 60, spread: 60 });
-    showToast(`Successfully reverted broadcast to version ${version.versionNumber}!`);
+  const scheduleSaved=async(post:PostItem,instant=false,date=post.scheduledFor)=>{
+    const response=await apiFetch(`/api/posts/${post.id}/schedule`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expectedRevision:post.revision,scheduledFor:date,instant})});
+    const data=await response.json();if(!response.ok)throw new Error(data.error);acceptPost(data.post);return data.post as PostItem;
   };
-
-  // Approval Queue Actions
-  const handleApprovePost = (postId: string) => {
-    if (currentUser?.email?.toLowerCase() !== 'scott@q-ai.online') {
-      showToast('Permission Denied: Only scott@q-ai.online is authorized to approve posts.', 'warning');
-      return;
-    }
-    setPosts(prev => prev.map(p => {
-      if (p.id === postId) {
-        const approvedPost: PostItem = {
-          ...p,
-          status: 'approved',
-          approvedBy: `${currentUser.name} (Lead Approver - ${currentUser.email})`
-        };
-        return recordPostVersion(approvedPost, 'Approved for multi-channel scheduling by Lead Approver.');
-      }
-      return p;
-    }));
-    confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-    showToast('Post approved by Scott Harvey-Whittle! Ready for scheduled multi-channel distribution.');
+  const handleSaveDraft=async(data:Partial<PostItem>)=>{
+    await savePost(data,'draft',editingPost);setEditingPost(null);setActiveTab('queue');showToast('Draft saved to the shared queue.');
   };
-
-  const handleRequestChanges = (postId: string, feedback: string) => {
-    setPosts(prev => prev.map(p => {
-      if (p.id === postId) {
-        const revisedPost: PostItem = {
-          ...p,
-          status: 'changes_requested',
-          comments: [
-            ...p.comments,
-            {
-              id: `c-${Date.now()}`,
-              author: currentUser?.name || 'Jordan Vance',
-              authorRole: currentUser?.role === 'admin' ? 'Brand Admin' : 'Editorial Reviewer',
-              avatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-              content: feedback,
-              createdAt: 'Just now',
-              isResolved: false
-            }
-          ]
-        };
-        return recordPostVersion(revisedPost, `Changes requested: "${feedback.slice(0, 40)}..."`);
-      }
-      return p;
-    }));
-    showToast('Feedback submitted to editorial team. Post moved to Changes Requested.', 'warning');
+  const handleSubmitForApproval=async(data:Partial<PostItem>)=>{
+    await savePost(data,'submit',editingPost);setEditingPost(null);setActiveTab('queue');showToast('Post saved and submitted for approval.');
   };
-
-  const handlePublishNow = async (postId: string) => {
-    const post = posts.find(p => p.id === postId);
-    if (!post) {
-      showToast('Could not find the post to publish.', 'warning');
-      return;
-    }
-
-    try {
-      const published = await publishBroadcast(post, postId);
-      setPosts(prev => prev.map(p => {
-        if (p.id === postId) {
-          const publishedPost: PostItem = {
-            ...p,
-            remoteIds: published.results.map((result: any) => result.remoteId).filter(Boolean),
-            status: 'published',
-            publishedAt: new Date().toISOString()
-          };
-          return recordPostVersion(publishedPost, 'Broadcast published through configured backend social providers.', true);
-        }
-        return p;
-      }));
-      confetti({ particleCount: 90, spread: 70 });
-      showToast('Post published through the backend social provider routes.');
-    } catch (err: any) {
-      showToast(err.message || 'Publishing is not configured yet.', 'warning');
-    }
+  const composerDelivery=async(data:Partial<PostItem>,instant:boolean)=>{
+    let post=await savePost(data,'submit',editingPost);
+    post=await savePost(post,'approve',post);
+    post=await scheduleSaved(post,instant);setEditingPost(null);setActiveTab(instant?'queue':'calendar');
+    const failed=post.deliveryStates?.some(d=>d.state==='failed'||d.state==='uncertain');
+    showToast(failed?'Delivery needs attention. Check the queue for the platform result.':instant?'Delivery processed. Check the queue for results.':'Post saved to the publishing schedule.',failed?'warning':'success');
   };
-
-  // Composer Actions
-  const handleSaveDraft = (postData: Partial<PostItem>) => {
-    if (editingPost && posts.some(p => p.id === editingPost.id)) {
-      setPosts(prev => prev.map(p => {
-        if (p.id === editingPost.id) {
-          const updated: PostItem = { ...p, ...postData } as PostItem;
-          return recordPostVersion(updated, 'Updated draft content in composer.');
-        }
-        return p;
-      }));
-      setEditingPost(null);
-    } else {
-      const newPostId = `post-${Date.now()}`;
-      const initialVersion: PostVersion = {
-        versionId: `ver-${Date.now()}-1`,
-        versionNumber: 'v1.0',
-        timestamp: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
-        modifiedBy: currentUser?.name || 'Scott Harvey-Whittle',
-        author: currentUser?.name || 'Scott Harvey-Whittle',
-        authorRole: currentUser?.title || 'Social Media & Communications Officer',
-        authorAvatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-        title: postData.title || 'Untitled Broadcast',
-        content: postData.content || '',
-        platforms: postData.platforms || ['facebook'],
-        mediaUrls: postData.mediaUrls || [Q_LOGO_URL],
-        status: 'draft',
-        complianceScore: postData.complianceAudit?.score || 95,
-        changesSummary: 'Initial draft created in composer.',
-        changeSummary: 'Initial draft created in composer.',
-        contentSnapshot: postData.content || '',
-        titleSnapshot: postData.title || 'Untitled Broadcast',
-        platformsSnapshot: postData.platforms || ['facebook'],
-        mediaUrlsSnapshot: postData.mediaUrls || [Q_LOGO_URL],
-        complianceScoreSnapshot: postData.complianceAudit?.score || 95,
-        statusSnapshot: 'draft'
-      };
-
-      const newPost: PostItem = {
-        id: newPostId,
-        title: postData.title || 'Untitled Broadcast',
-        content: postData.content || '',
-        platforms: postData.platforms || ['facebook'],
-        status: 'draft',
-        createdAt: new Date().toISOString(),
-        author: {
-          name: currentUser?.name || 'Scott Harvey-Whittle',
-          role: currentUser?.title || 'Communications Officer',
-          avatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'
-        },
-        mediaUrls: postData.mediaUrls || [Q_LOGO_URL],
-        campaign: postData.campaign || 'General',
-        tags: postData.tags || ['#QIntelligence'],
-        scheduledFor: postData.scheduledFor || null,
-        lastModified: new Date().toISOString(),
-        currentVersion: 'v1.0',
-        versionHistory: [initialVersion],
-        complianceAudit: postData.complianceAudit || {
-          score: 95,
-          status: 'approved',
-          summary: 'Compliant with Q Brand Guide voice.',
-          breakdown: {
-            welcoming: 96,
-            affirming: 95,
-            clarity: 94,
-            privacySafe: 98,
-            nonPresumptive: 95
-          },
-          flags: [],
-          scannedAt: new Date().toISOString()
-        },
-        comments: [],
-        piiShieldVerified: postData.piiShieldVerified ?? true
-      };
-      setPosts(prev => [newPost, ...prev]);
-      setEditingPost(null);
-    }
-    setActiveTab('queue');
-    showToast('Draft saved on this browser.');
+  const handleSchedulePost=(data:Partial<PostItem>)=>composerDelivery(data,false);
+  const handlePublishDirect=(data:Partial<PostItem>)=>composerDelivery(data,true);
+  const handleApprovePost=async(id:string)=>{
+    try{const post=posts.find(p=>p.id===id);if(!post)return;const approved=await savePost(post,'approve',post);if(approved.scheduledFor && new Date(approved.scheduledFor).getTime()>Date.now()+60000){await scheduleSaved(approved);showToast('Post approved and scheduled.');}else showToast('Post approved and ready to publish.');}
+    catch(error){showToast((error as Error).message,'warning');}
   };
-
-  const handleSubmitForApproval = (postData: Partial<PostItem>) => {
-    if (editingPost && posts.some(p => p.id === editingPost.id)) {
-      setPosts(prev => prev.map(p => {
-        if (p.id === editingPost.id) {
-          const updated: PostItem = { 
-            ...p, 
-            ...postData, 
-            status: 'pending_approval' 
-          } as PostItem;
-          return recordPostVersion(updated, 'Submitted revisions for editorial approval.');
-        }
-        return p;
-      }));
-      setEditingPost(null);
-    } else {
-      const newPostId = `post-${Date.now()}`;
-      const initialVersion: PostVersion = {
-        versionId: `ver-${Date.now()}-1`,
-        versionNumber: 'v1.0',
-        timestamp: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
-        modifiedBy: currentUser?.name || 'Scott Harvey-Whittle',
-        author: currentUser?.name || 'Scott Harvey-Whittle',
-        authorRole: currentUser?.title || 'Social Media & Communications Officer',
-        authorAvatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-        title: postData.title || 'Community Broadcast',
-        content: postData.content || '',
-        platforms: postData.platforms || ['facebook'],
-        mediaUrls: postData.mediaUrls || [Q_LOGO_URL],
-        status: 'pending_approval',
-        complianceScore: postData.complianceAudit?.score || 96,
-        changesSummary: 'Broadcast created and queued for automated approval.',
-        changeSummary: 'Broadcast created and queued for automated approval.',
-        contentSnapshot: postData.content || '',
-        titleSnapshot: postData.title || 'Community Broadcast',
-        platformsSnapshot: postData.platforms || ['facebook'],
-        mediaUrlsSnapshot: postData.mediaUrls || [Q_LOGO_URL],
-        complianceScoreSnapshot: postData.complianceAudit?.score || 96,
-        statusSnapshot: 'pending_approval'
-      };
-
-      const newPost: PostItem = {
-        id: newPostId,
-        title: postData.title || 'Community Broadcast',
-        content: postData.content || '',
-        platforms: postData.platforms || ['facebook'],
-        status: 'pending_approval',
-        createdAt: new Date().toISOString(),
-        author: {
-          name: currentUser?.name || 'Scott Harvey-Whittle',
-          role: currentUser?.title || 'Social Media Officer',
-          avatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'
-        },
-        mediaUrls: postData.mediaUrls || [Q_LOGO_URL],
-        campaign: postData.campaign || 'Wellbeing Affirmation',
-        tags: postData.tags || ['#QIntelligence', '#LGBTQWellbeing'],
-        scheduledFor: postData.scheduledFor || null,
-        lastModified: new Date().toISOString(),
-        currentVersion: 'v1.0',
-        versionHistory: [initialVersion],
-        complianceAudit: postData.complianceAudit || {
-          score: 96,
-          status: 'approved',
-          summary: 'Pre-screened against Q voice pillars.',
-          breakdown: {
-            welcoming: 98,
-            affirming: 96,
-            clarity: 95,
-            privacySafe: 98,
-            nonPresumptive: 96
-          },
-          flags: [],
-          scannedAt: new Date().toISOString()
-        },
-        comments: [],
-        piiShieldVerified: postData.piiShieldVerified ?? true
-      };
-      setPosts(prev => [newPost, ...prev]);
-      setEditingPost(null);
-    }
-    setActiveTab('queue');
-    showToast('Broadcast submitted to Automated Approval Queue!');
+  const handleRequestChanges=async(id:string,feedback:string)=>{
+    try{const post=posts.find(p=>p.id===id);if(post)await savePost({...post,feedback},'changes',post);showToast('Change request saved.');}catch(error){showToast((error as Error).message,'warning');}
   };
-
-  const handleSchedulePost = async (postData: Partial<PostItem>) => {
-    try {
-      const response = await fetch('/api/schedule/facebook', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(postData) });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || 'Facebook did not confirm the schedule.');
-      handleSaveDraft(postData);
-      const saved = editingPost && postsRef.current.some(p => p.id === editingPost.id) ? editingPost.id : postsRef.current[0].id;
-      setPosts(prev => prev.map(p => p.id === saved ? { ...p, status: 'scheduled', remoteIds: [data.result.remoteId], approvedBy: currentUser?.name } : p));
-      setEditingPost(null);
-      setActiveTab('calendar');
-      showToast('Facebook confirmed the schedule and will publish at the selected time.');
-    } catch (error) { showToast((error as Error).message, 'warning'); }
+  const handlePublishNow=async(id:string)=>{
+    try{const post=posts.find(p=>p.id===id);if(post){const result=await scheduleSaved(post,true);showToast(result.status==='published'?'Post published.':'Delivery needs attention. Check the platform results.',result.status==='published'?'success':'warning');}}
+    catch(error){showToast((error as Error).message,'warning');}
   };
-
-  const handlePublishDirect = async (postData: Partial<PostItem>) => {
-    const newPostId = `post-${Date.now()}`;
-
-    let publication: any;
-    try {
-      publication = await publishBroadcast(postData, newPostId);
-    } catch (err: any) {
-      showToast(err.message || 'Publishing is not configured yet.', 'warning');
-      return;
-    }
-
-    const initialVersion: PostVersion = {
-      versionId: `ver-${Date.now()}-1`,
-      versionNumber: 'v1.0',
-      timestamp: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
-      modifiedBy: currentUser?.name || 'Scott Harvey-Whittle',
-      author: currentUser?.name || 'Scott Harvey-Whittle',
-      authorRole: currentUser?.title || 'Social Media & Communications Officer',
-      authorAvatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-      title: postData.title || 'Live Broadcast',
-      content: postData.content || '',
-      platforms: postData.platforms || ['facebook'],
-      mediaUrls: postData.mediaUrls || [Q_LOGO_URL],
-      status: 'published',
-      complianceScore: 98,
-      changesSummary: 'Direct broadcast published through configured backend social providers.',
-      changeSummary: 'Direct broadcast published through configured backend social providers.',
-      contentSnapshot: postData.content || '',
-      titleSnapshot: postData.title || 'Live Broadcast',
-      platformsSnapshot: postData.platforms || ['facebook'],
-      mediaUrlsSnapshot: postData.mediaUrls || [Q_LOGO_URL],
-      complianceScoreSnapshot: 98,
-      statusSnapshot: 'published'
-    };
-
-    const newPost: PostItem = {
-      id: newPostId,
-      remoteIds: publication.results.map((result: any) => result.remoteId).filter(Boolean),
-      title: postData.title || 'Live Broadcast',
-      content: postData.content || '',
-      platforms: postData.platforms || ['facebook'],
-      status: 'published',
-      createdAt: new Date().toISOString(),
-      publishedAt: new Date().toISOString(),
-      scheduledFor: postData.scheduledFor || null,
-      lastModified: new Date().toISOString(),
-      currentVersion: 'v1.0',
-      versionHistory: [initialVersion],
-      author: {
-        name: currentUser?.name || 'Scott Harvey-Whittle',
-        role: currentUser?.title || 'Communications Officer',
-        avatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'
-      },
-      mediaUrls: postData.mediaUrls || [Q_LOGO_URL],
-      campaign: postData.campaign || 'Direct Broadcast',
-      tags: postData.tags || ['#QIntelligence'],
-      complianceAudit: postData.complianceAudit || {
-        score: 98,
-        status: 'approved',
-        summary: 'Direct broadcast verified.',
-        breakdown: {
-          welcoming: 98,
-          affirming: 98,
-          clarity: 96,
-          privacySafe: 100,
-          nonPresumptive: 98
-        },
-        flags: [],
-        scannedAt: new Date().toISOString()
-      },
-      comments: [],
-      piiShieldVerified: true
-    };
-    setPosts(prev => [newPost, ...prev]);
-      setEditingPost(null);
-    setActiveTab('queue');
-    confetti({ particleCount: 90, spread: 70 });
-    showToast('Broadcast published through the backend social provider routes.');
+  const handleCancelSchedule=async(id:string)=>{
+    try{const post=posts.find(p=>p.id===id);if(!post)return;const response=await apiFetch(`/api/posts/${id}/cancel`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expectedRevision:post.revision})});const data=await response.json();if(!response.ok)throw new Error(data.error);acceptPost(data.post);showToast('Schedule cancelled. The post remains in the shared queue.');}
+    catch(error){showToast((error as Error).message,'warning');}
+  };
+  const handleRevertVersion=async(id:string,version:PostVersion)=>{
+    try{const post=posts.find(p=>p.id===id);if(!post)return;await savePost({...post,title:version.titleSnapshot,content:version.contentSnapshot,platforms:version.platformsSnapshot,mediaUrls:version.mediaUrlsSnapshot},'draft',post);showToast('Version restored as a draft for review.');}
+    catch(error){showToast((error as Error).message,'warning');}
   };
 
   // Template to Composer Bridge
@@ -668,7 +247,7 @@ export default function App() {
 
   // Edit from Queue or Calendar
   const handleEditPost = (post: PostItem) => {
-    if (post.source === 'platform' || (post.status === 'scheduled' && post.remoteIds?.length)) { showToast('This post was synced from the platform. Edit it on the social platform.', 'info'); return; }
+    if (post.source === 'platform' || post.status === 'scheduled' || post.status === 'published') { showToast('This post was synced from the platform. Cancel its schedule before editing, or manage published posts on the social platform.', 'info'); return; }
     setEditingPost(post);
     setActiveTab('composer');
   };
@@ -690,24 +269,8 @@ export default function App() {
   };
 
   // Rewrite application in Compliance Auditor
-  const handleApplyRewriteToPost = (postId: string, newContent: string) => {
-    setPosts(prev => prev.map(p => {
-      if (p.id === postId) {
-        const rewritten: PostItem = {
-          ...p,
-          content: newContent,
-          complianceAudit: {
-            ...p.complianceAudit,
-            score: 98,
-            status: 'approved',
-            summary: 'Rewritten with Q Intelligence affirming and welcoming voice.'
-          }
-        };
-        return recordPostVersion(rewritten, 'Applied Q-Voice empathetic rewrite to post.');
-      }
-      return p;
-    }));
-    showToast('Q-Voice rewrite applied to post in queue!');
+  const handleApplyRewriteToPost=async(id:string,content:string)=>{
+    try{const post=posts.find(p=>p.id===id);if(post)await savePost({...post,content},'draft',post);showToast('Rewrite saved as a draft for review.');}catch(error){showToast((error as Error).message,'warning');}
   };
 
   // Schedule from calendar cell click
@@ -780,20 +343,24 @@ export default function App() {
     showToast(`Loaded ${tag} into Broadcast Composer!`);
   };
 
-  const handleReschedulePost = (postId: string, date: string) => {
-    if (!Number.isFinite(new Date(date).getTime()) || new Date(date).getTime() <= Date.now()) { showToast('Choose a future date and time.', 'warning'); return; }
-    setPosts(prev => prev.map(post => post.id === postId ? recordPostVersion({ ...post, scheduledFor: date, lastModified: new Date().toISOString() }, `Calendar slot changed to ${new Date(date).toLocaleString()}`) : post));
-    showToast('Calendar slot saved. Use Schedule on Facebook to confirm automatic publishing.');
+  const handleReschedulePost=async(id:string,date:string)=>{
+    const post=posts.find(p=>p.id===id);if(!post)return;
+    try{
+      if(post.status==='scheduled'||post.status==='approved')await scheduleSaved(post,false,date);
+      else await savePost({...post,scheduledFor:date},post.status==='pending_approval'?'submit':'draft',post);
+      showToast('Publication time saved.');
+    }catch(error){showToast((error as Error).message,'warning');throw error;}
   };
 
   const pendingCount = posts.filter(p => p.status === 'pending_approval').length;
 
   // Gate app behind Login Page if not authenticated
+  if(passwordRecovery)return <PasswordRecovery onComplete={()=>{setPasswordRecovery(false);setCurrentUser(null);window.history.replaceState({},document.title,window.location.pathname);}} />;
+  if(authLoading)return <div className="min-h-screen flex items-center justify-center">Checking your sign-in session…</div>;
   if (!currentUser) {
     return (
       <LoginPage 
         onLoginSuccess={(user) => {
-          localStorage.setItem('q_intelligence_staff_user', JSON.stringify(user));
           setCurrentUser(user);
           showToast(`Authenticated as ${user.name} (${user.role.toUpperCase()})`);
         }} 
@@ -817,7 +384,8 @@ export default function App() {
         onOpenAuthModal={() => setShowAuthModal(true)}
         onOpenSocialModal={() => setShowSocialModal(true)}
         onSignOut={() => {
-          localStorage.removeItem('q_intelligence_staff_user');
+          apiFetch('/api/auth/logout',{method:'POST'});
+          getSupabaseClient()?.auth.signOut();
           setCurrentUser(null);
           showToast('Signed out to Login Page.', 'info');
         }}
@@ -825,20 +393,23 @@ export default function App() {
         activeTab={activeTab}
       />
 
+      {legacyDrafts.length>0 && <aside className="p-4 bg-amber-50 text-amber-950 text-sm flex items-center justify-between gap-3"><span>{legacyDrafts.length} posts from the previous browser queue can be recovered as shared drafts.</span><button disabled={recoveringDrafts} onClick={recoverLegacyDrafts} className="font-semibold underline">{recoveringDrafts?'Recovering…':'Recover browser drafts'}</button></aside>}
       {/* Primary Sticky Hub Navigation */}
       <Navigation
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         pendingCount={pendingCount}
-        activityCount={posts.length > 0 ? 4 : 0}
+        activityCount={posts.filter(p=>p.status==='changes_requested').length}
         connectedChannelsCount={socialConnections.filter(c => c.isConnected).length}
       />
 
       {/* Main Workspace Stage */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {queueError && <p role="alert" className="mb-4 rounded-xl bg-amber-50 p-4 text-amber-900">{queueError}</p>}
         {activeTab === 'queue' && (
           <ApprovalQueue
-            platformReadError={platformReadError}
+            platformReadError={[queueError,platformReadError].filter(Boolean).join(' ')}
+            onCancelSchedule={handleCancelSchedule}
             engagementPosts={platformPosts}
             onScheduleNewPost={handleScheduleFromCalendar}
             onReschedulePost={handleReschedulePost}
@@ -871,7 +442,7 @@ export default function App() {
         )}
 
         {activeTab === 'composer' && (
-          <MultiPlatformComposer
+          <MultiPlatformComposer key={`${currentUser.id}:${editingPost?.id || "new"}`}
             initialPost={editingPost}
             onSaveDraft={handleSaveDraft}
             onSubmitForApproval={handleSubmitForApproval}
@@ -919,7 +490,7 @@ export default function App() {
         )}
 
         {activeTab === 'collab' && (
-          <CollaborationRoom
+          <CollaborationRoom onPostUpdated={acceptPost}
             posts={visiblePosts}
             onOpenPostInQueue={(postId) => {
               setActiveTab('queue');
@@ -1034,11 +605,11 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4 text-[11px] font-mono">
-            <span>Supabase Auth Protected</span>
+            <span>Authenticated staff access</span>
             <span>•</span>
             <span>PII Shield Active</span>
             <span>•</span>
-            <span>WCAG AAA Verified</span>
+            <span>Staff workspace</span>
             <span>•</span>
             <span>2026 Brand System</span>
           </div>

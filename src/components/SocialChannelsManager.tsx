@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/supabase';
 import { WebsiteConnectionForm } from './WebsiteConnectionForm';
 import { websiteRequest } from '../utils/website';
 import { BlueskyConnectionForm } from './BlueskyConnectionForm';
@@ -153,7 +154,7 @@ export const SocialChannelsManager: React.FC<SocialChannelsManagerProps> = ({
     if (conn.platform === 'website' || conn.platform === 'linkedin') {
       const started = performance.now();
       try { if (conn.platform === 'website') await websiteRequest('check');
-        else { const response = await fetch('/api/linkedin/check', { method: 'POST' }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'LinkedIn connection check failed.'); } const ms = Math.round(performance.now() - started); setPingData(prev => ({ ...prev, [conn.id]: { latency: ms, timestamp: 'Just now' } })); onShowToast(`${conn.platformName} connection verified: ${ms}ms.`); }
+        else { const response = await apiFetch('/api/linkedin/check', { method: 'POST' }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'LinkedIn connection check failed.'); } const ms = Math.round(performance.now() - started); setPingData(prev => ({ ...prev, [conn.id]: { latency: ms, timestamp: 'Just now' } })); onShowToast(`${conn.platformName} connection verified: ${ms}ms.`); }
       catch (error) { onShowToast((error as Error).message, 'warning'); }
       finally { setTestingPingId(null); }
       return;

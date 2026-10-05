@@ -1,5 +1,6 @@
+import { apiFetch } from '../lib/supabase';
 import { localDateTime } from '../utils/postDates';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { PostItem, SocialPlatform } from '../types';
 import { PLATFORM_SPECS, Q_LOGO_URL } from '../data/brandData';
 import { QLogo } from './QLogo';
@@ -31,9 +32,9 @@ import confetti from 'canvas-confetti';
 
 interface MultiPlatformComposerProps {
   initialPost?: PostItem | null;
-  onSaveDraft: (postData: Partial<PostItem>) => void;
-  onSubmitForApproval: (postData: Partial<PostItem>) => void;
-  onPublishDirect: (postData: Partial<PostItem>) => void;
+  onSaveDraft: (postData: Partial<PostItem>) => Promise<void>;
+  onSubmitForApproval: (postData: Partial<PostItem>) => Promise<void>;
+  onPublishDirect: (postData: Partial<PostItem>) => Promise<void>;
   onSchedulePost: (postData: Partial<PostItem>) => Promise<void>;
   onOpenMediaPicker: (onSelect: (url: string) => void) => void;
   onOpenComplianceTab: () => void;
@@ -50,23 +51,28 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
   onOpenComplianceTab,
   currentUser,
 }) => {
+  const draftKey = `q-social-composer-v2:${currentUser?.id}:${initialPost?.id || 'new'}`;
+  const [restored] = useState<Partial<PostItem> | null>(() => { try { const raw=localStorage.getItem(draftKey); return raw ? JSON.parse(raw) : null; } catch { return null; } });
+  const startingPost=restored || initialPost;
   const isOwner = currentUser?.email?.toLowerCase() === 'scott@q-ai.online' || currentUser?.role === 'admin';
-  const [title, setTitle] = useState(initialPost?.title || '');
-  const [content, setContent] = useState(initialPost?.content || '');
+  const [title, setTitle] = useState(startingPost?.title || '');
+  const [content, setContent] = useState(startingPost?.content || '');
   const [selectedPlatforms, setSelectedPlatforms] = useState<SocialPlatform[]>(
-    initialPost?.platforms || ['facebook']
+    startingPost?.platforms || ['facebook']
   );
   const hasWebsiteTarget = selectedPlatforms.includes('website');
   const [previewPlatform, setPreviewPlatform] = useState<SocialPlatform>('facebook');
-  const [mediaUrls, setMediaUrls] = useState<string[]>(initialPost?.mediaUrls || [Q_LOGO_URL]);
-  const [campaign, setCampaign] = useState(initialPost?.campaign || 'General Wellbeing 2026');
+  const [mediaUrls, setMediaUrls] = useState<string[]>(startingPost?.mediaUrls || [Q_LOGO_URL]);
+  const [campaign, setCampaign] = useState(startingPost?.campaign || 'General Wellbeing 2026');
+  const [saveError, setSaveError] = useState('');
+  const performSave = async (action: () => Promise<void>) => { setIsScheduling(true); setSaveError(''); try { await action(); localStorage.removeItem(draftKey); } catch(error) { setSaveError((error as Error).message); } finally { setIsScheduling(false); } };
   const [scheduledDateTime, setScheduledDateTime] = useState(
-    initialPost?.scheduledFor 
-      ? localDateTime(initialPost.scheduledFor)
+    startingPost?.scheduledFor 
+      ? localDateTime(startingPost.scheduledFor)
       : localDateTime(new Date(Date.now() + 86400000))
   );
   const [tags, setTags] = useState<string[]>(
-    initialPost?.tags || ['#QIntelligence', '#LGBTQWellbeing', '#SafeSpace']
+    startingPost?.tags || ['#QIntelligence', '#LGBTQWellbeing', '#SafeSpace']
   );
   const [newTagInput, setNewTagInput] = useState('');
   const [isScheduling, setIsScheduling] = useState(false);
@@ -85,19 +91,10 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
   const [flaggedWords, setFlaggedWords] = useState<string[]>([]);
   const [piiWarnings, setPiiWarnings] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (initialPost) {
-      setTitle(initialPost.title);
-      setContent(initialPost.content);
-      setSelectedPlatforms(initialPost.platforms);
-      setMediaUrls(initialPost.mediaUrls);
-      setCampaign(initialPost.campaign || '');
-      setTags(initialPost.tags || []);
-      if (initialPost.platforms.length > 0) {
-        setPreviewPlatform(initialPost.platforms[0]);
-      }
-    }
-  }, [initialPost]);
+  useLayoutEffect(() => {
+    try { localStorage.setItem(draftKey, JSON.stringify({title,content,platforms:selectedPlatforms,mediaUrls,campaign,tags,scheduledFor:scheduledDateTime && Number.isFinite(new Date(scheduledDateTime).getTime()) ? new Date(scheduledDateTime).toISOString() : null})); }
+    catch { setSaveError('This browser cannot keep a recovery copy. Save the draft to the shared queue before leaving.'); }
+  }, [draftKey,title,content,selectedPlatforms,mediaUrls,campaign,tags,scheduledDateTime]);
 
   // Run local pre-screening on text change
   useEffect(() => {
@@ -164,7 +161,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
     setIsRewriting(true);
     setAiNote(null);
     try {
-      const res = await fetch('/api/compliance/rewrite', {
+      const res = await apiFetch('/api/compliance/rewrite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -195,7 +192,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
   const handleGenerateHashtags = async () => {
     setIsGeneratingTags(true);
     try {
-      const res = await fetch('/api/compliance/hashtags', {
+      const res = await apiFetch('/api/compliance/hashtags', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -573,7 +570,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
                 className="w-full text-xs px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800 font-mono"
               />
               <span className="text-[10px] text-slate-500 font-mono">
-                Times use your local time zone. A calendar slot is confirmed for automatic publishing only after Schedule on Facebook succeeds.
+                Times use your local time zone. A calendar slot is confirmed for automatic publishing after the saved post is approved and scheduled.
               </span>
             </div>
 
@@ -617,22 +614,22 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
             </div>
           )}
 
+          {saveError && <p role="alert" className="text-sm text-rose-700">{saveError} Your draft is still open.</p>}
           {/* Publishing & Approval Action Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-6 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => onSaveDraft(buildPostPayload())}
+              disabled={isScheduling} onClick={() => performSave(() => onSaveDraft(buildPostPayload()))}
               className="px-4 py-2.5 rounded-full text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
             >
-              Save Local Draft
+              Save Draft
             </button>
 
             <div className="flex items-center gap-3">
-              {isOwner && <button type="button" disabled={isScheduling || isOverLimit || selectedPlatforms.length !== 1 || selectedPlatforms[0] !== 'facebook' || !scheduledDateTime || !content.trim()} onClick={async () => {
-                setIsScheduling(true);
-                try { await onSchedulePost(buildPostPayload()); } finally { setIsScheduling(false); }
-              }} className="px-4 py-2.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 disabled:opacity-50 cursor-pointer" title="Facebook sends the post at the selected time, even when this app is closed. Select Facebook only."> {isScheduling ? 'Scheduling…' : 'Schedule on Facebook'}</button>}
-              {hasWebsiteTarget && !isOwner ? (
+              {isOwner && <button type="button" disabled={isScheduling || isOverLimit || !selectedPlatforms.length || !scheduledDateTime || !content.trim()} onClick={async () => {
+                await performSave(() => onSchedulePost(buildPostPayload()));
+              }} className="px-4 py-2.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 disabled:opacity-50 cursor-pointer" title="Selected channels publish at the scheduled time."> {isScheduling ? 'Scheduling…' : 'Schedule Post'}</button>}
+              {!isOwner ? (
                 <div 
                   className="px-4 py-2.5 rounded-full text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 flex items-center gap-1.5 cursor-not-allowed"
                   title="Website broadcast requires Owner authorization (Scott Harvey-Whittle). Submit to Approval Queue instead."
@@ -644,9 +641,9 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    onPublishDirect(buildPostPayload());
+                    performSave(() => onPublishDirect(buildPostPayload()));
                   }}
-                  disabled={isOverLimit}
+                  disabled={isScheduling || isOverLimit}
                   className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                 >
                   <Send className="w-3.5 h-3.5 text-emerald-700" />
@@ -657,10 +654,9 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
-                  onSubmitForApproval(buildPostPayload());
+                  performSave(() => onSubmitForApproval(buildPostPayload()));
                 }}
-                disabled={isOverLimit}
+                disabled={isScheduling || isOverLimit}
                 className="px-6 py-2.5 rounded-full text-xs font-bold text-white bg-pride-spectrum hover:opacity-95 shadow-glow-purple transition-all disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
               >
                 <CheckCircle2 className="w-4 h-4" />
