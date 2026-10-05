@@ -11,6 +11,7 @@ import express from 'express';
 import path from 'path';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
+import { database } from './server/database.js';
 
 dotenv.config({ path: '.env.local' });
 dotenv.config();
@@ -253,6 +254,22 @@ export async function createApp(options: { authenticate?: express.RequestHandler
       brand: 'Q Intelligence',
       timestamp: new Date().toISOString(),
     });
+  });
+
+  app.get('/api/health/social', async (_req, res) => {
+    const checkedAt = new Date().toISOString();
+    const missing = ['APP_URL', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SOCIAL_SESSION_SECRET', 'CRON_SECRET']
+      .filter(key => !process.env[key]);
+    if (missing.length) {
+      return res.status(503).json({ status: 'degraded', service: 'social-publishing', checkedAt, checks: { configuration: 'failed', database: 'not_checked' }, error: 'Required server configuration is missing.' });
+    }
+    try {
+      const { error } = await database().from('social_manager_jobs').select('id').limit(1);
+      if (error) throw error;
+      return res.status(200).json({ status: 'ok', service: 'social-publishing', checkedAt, checks: { configuration: 'ok', database: 'ok', scheduler: 'endpoint_ready' } });
+    } catch {
+      return res.status(503).json({ status: 'degraded', service: 'social-publishing', checkedAt, checks: { configuration: 'ok', database: 'failed' }, error: 'Shared publishing storage is unavailable.' });
+    }
   });
 
   app.get('/api/social/status', (req, res) => {

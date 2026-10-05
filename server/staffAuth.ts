@@ -31,7 +31,7 @@ function cookieToken(req: Request) {
 }
 export async function authenticate(req: Request, res: Response, next: NextFunction) {
   if(!['GET','HEAD','OPTIONS'].includes(req.method) && !isBlueskySameOrigin(req))return res.status(403).json({error:'Make this request from the social workspace.'});
-  if (req.path === '/health' || req.path === '/auth/session' || req.path === '/auth/logout' || req.path === '/cron/publish') return next();
+  if (req.path.startsWith('/health') || req.path === '/auth/session' || req.path === '/auth/logout' || req.path === '/cron/publish') return next();
   const token = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : cookieToken(req);
   if (!token) return res.status(401).json({ error: 'Sign in to access this workspace.' });
   try {
