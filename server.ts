@@ -566,8 +566,17 @@ Return valid JSON adhering to the specified schema.
 
   // Rewrite in Q Intelligence Voice
   app.post('/api/compliance/rewrite', async (req, res) => {
+    const platformGuidance: Record<string, { limit: number; guidance: string }> = {
+      bluesky: { limit: 300, guidance: 'Keep it concise and conversational. Lead with one clear thought, use short paragraphs, and avoid unnecessary setup. The final copy plus the supplied hashtags must stay within 300 characters.' },
+      facebook: { limit: 5000, guidance: 'Use a warm, readable community post with a little more context, natural line breaks, and an inviting question or gentle call to action where appropriate.' },
+      website: { limit: 12000, guidance: 'Write for an owned editorial channel: make it clear, informative, accessible, and suitable for a longer article or announcement. Use descriptive context rather than social shorthand.' },
+    };
+    const selectedPlatform = platformGuidance[req.body?.platformKey] || platformGuidance.facebook;
+    const existingTags = Array.isArray(req.body?.tags) ? req.body.tags.filter((tag: unknown): tag is string => typeof tag === 'string') : [];
+    const tagChars = existingTags.length ? existingTags.join('\n').length + 1 : 0;
+    const contentBudget = Math.max(40, selectedPlatform.limit - tagChars);
     try {
-      const { text, style = 'Warm & Supportive', platform = 'Facebook' } = req.body;
+      const { text, style = 'Warm & Supportive', platform = 'Facebook', platformKey = '', tags = [] } = req.body;
       if (typeof text !== 'string' || !text.trim()) {
         return res.status(400).json({ error: 'Text is required for rewrite.' });
       }
@@ -575,10 +584,10 @@ Return valid JSON adhering to the specified schema.
       const ai = getGeminiClient();
       if (!ai) {
         // High-quality deterministic fallback
-        const rewritten = `Hi there. ${text.replace(/sufferers|afflicted/gi, 'members of our community').replace(/you must/gi, 'you are always welcome to')} We're here for you—always. Your journey is yours to define. 💜✨`;
+        const rewritten = `Hi there. ${text.replace(/sufferers|afflicted/gi, 'members of our community').replace(/you must/gi, 'you are always welcome to')} We're here for you—always. Your journey is yours to define. 💜✨`.slice(0, contentBudget).trim();
         return res.json({
           rewrittenText: rewritten,
-          notes: 'Enhanced with welcoming, non-presumptive Q tone and affirming sign-off.',
+          notes: `Tailored for ${platform}: ${selectedPlatform.guidance}`,
           styleApplied: style,
           source: 'local_preset',
         });
@@ -588,6 +597,8 @@ Return valid JSON adhering to the specified schema.
 Rewrite the following post copy to align with the Q Intelligence brand voice.
 Desired Style: ${style} (e.g. "Warm & Supportive", "Direct & Clear", "Helpline & Safe Haven", or "Celebratory & Community")
 Platform: ${platform}
+Platform-specific guidance: ${selectedPlatform.guidance}
+Hard copy budget: ${contentBudget} characters before the existing hashtags are appended. Stay within this limit.
 
 Original Draft:
 """
@@ -599,6 +610,8 @@ Guidelines to apply:
 - Eliminate clinical, cold, or prescriptive phrasing.
 - Ensure no assumptions are made regarding user disclosure, identity timeline, or family background.
 - Include appropriate gentle hashtags and community-affirming emojis if suitable for ${platform}.
+- Preserve the core meaning and any essential factual details.
+- Do not add platform-inappropriate formatting or invent claims, resources, dates, or links.
 `;
 
       const response = await ai.models.generateContent({
@@ -629,8 +642,8 @@ Guidelines to apply:
       console.error('Rewrite provider failed:', err);
       const text = req.body.text as string;
       return res.json({
-        rewrittenText: text.replace(/sufferers|afflicted/gi, 'members of our community').replace(/you must/gi, 'you are welcome to'),
-        notes: 'AI rewriting is temporarily unavailable. Applied basic local wording adjustments; please review before publishing.',
+        rewrittenText: text.replace(/sufferers|afflicted/gi, 'members of our community').replace(/you must/gi, 'you are welcome to').slice(0, contentBudget).trim(),
+        notes: `AI rewriting is temporarily unavailable. Applied ${(req.body?.platform || 'Facebook')}-specific local adjustments and kept the copy within the available character budget; please review before publishing.`,
         styleApplied: req.body.style || 'Warm & Supportive',
         source: 'local_preset',
         degraded: true,

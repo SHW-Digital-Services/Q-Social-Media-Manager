@@ -200,7 +200,9 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
         body: JSON.stringify({
           text: content,
           style: rewriteStyle,
-          platform: PLATFORM_SPECS[previewPlatform]?.name || 'Social Media'
+          platform: PLATFORM_SPECS[previewPlatform]?.name || 'Social Media',
+          platformKey: previewPlatform,
+          tags,
         })
       });
       const data = await res.json();
@@ -466,8 +468,8 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
                 <div className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-white">
                   <Sparkles className="w-3.5 h-3.5" />
                 </div>
-                <span className="text-xs font-bold font-display text-purple-900">
-                  AI Brand Voice Assistant
+                  <span className="text-xs font-bold font-display text-purple-900">
+                  AI Brand Voice Assistant · {PLATFORM_SPECS[previewPlatform]?.name || 'selected platform'}
                 </span>
               </div>
 
