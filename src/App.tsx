@@ -22,6 +22,7 @@ import { StaffQuickGuideModal } from './components/StaffQuickGuideModal';
 import { QLogo } from './components/QLogo';
 import { AUTHORIZED_STAFF_ACCOUNTS, StaffUser, apiFetch, getSupabaseClient } from './lib/supabase';
 import { getSocialPlatformLabel } from './utils/socialOAuth';
+import { postRequest } from './utils/postRequest';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Analytics } from '@vercel/analytics/react';
@@ -143,7 +144,7 @@ export default function App() {
   },[currentUser?.id]);
   const savePost=async(data:Partial<PostItem>,action:string,existing?:PostItem|null):Promise<PostItem>=>{
     const id=existing?.id||data.id||crypto.randomUUID();
-    const response=await apiFetch(`/api/posts/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({data,action,expectedRevision:existing?.revision||0})});
+    const response=await apiFetch(`/api/posts/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(postRequest(data,action,existing?.revision||0))});
     const result=await response.json();if(!response.ok)throw new Error(result.error);acceptPost(result.post);return result.post;
   };
   const recoverLegacyDrafts=async()=>{

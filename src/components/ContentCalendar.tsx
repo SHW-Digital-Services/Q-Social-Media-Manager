@@ -1,4 +1,5 @@
 import { localDateKey, localDateTime } from '../utils/postDates';
+import { currentCalendarPosts } from '../utils/calendarPosts';
 import React, { useState, useMemo } from 'react';
 import { PostItem, SocialPlatform, PostStatus } from '../types';
 import { 
@@ -131,15 +132,7 @@ export const ContentCalendar: React.FC<ContentCalendarProps> = ({
 
   // Filter posts
   const filteredPosts = useMemo(() => {
-    const latestById = new Map<string, PostItem>();
-    posts.forEach(post => {
-      const existing = latestById.get(post.id);
-      if (!existing || (post.revision || 0) > (existing.revision || 0) || new Date(post.lastModified).getTime() > new Date(existing.lastModified).getTime()) {
-        latestById.set(post.id, post);
-      }
-    });
-
-    return Array.from(latestById.values()).filter(p => {
+    return currentCalendarPosts(posts).filter(p => {
       if (platformFilter !== 'all' && !p.platforms.includes(platformFilter as SocialPlatform)) {
         return false;
       }

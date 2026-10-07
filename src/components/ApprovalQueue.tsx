@@ -1,4 +1,5 @@
 import { ContentCalendar } from './ContentCalendar';
+import { currentCalendarPosts } from '../utils/calendarPosts';
 import React, { useState } from 'react';
 import { PostItem, PostStatus, SocialPlatform } from '../types';
 import { PLATFORM_SPECS, Q_LOGO_URL } from '../data/brandData';
@@ -79,7 +80,7 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
   const [rejectModalPostId, setRejectModalPostId] = useState<string | null>(null);
   const [feedbackText, setFeedbackText] = useState('');
 
-  const filteredPosts = posts.filter(post => {
+  const filteredPosts = (viewMode === 'calendar' ? currentCalendarPosts(posts) : posts).filter(post => {
     if (selectedStatus !== 'all' && post.status !== selectedStatus) return false;
     if (selectedPlatform !== 'all' && !post.platforms.includes(selectedPlatform)) return false;
     if (searchQuery.trim()) {
