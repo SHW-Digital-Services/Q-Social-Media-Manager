@@ -148,7 +148,21 @@ export default function App() {
     const result=await response.json();if(!response.ok)throw new Error(result.error);acceptPost(result.post);return result.post;
   };
   const recoverLegacyDrafts=async()=>{
-    setRecoveringDrafts(true);try{for(const draft of legacyDrafts){await savePost({...draft,id:`recovered-${draft.id}`.slice(0,100),platforms:draft.platforms.filter(p=>['facebook','bluesky','website'].includes(p)),tags:draft.tags||[],mediaUrls:draft.mediaUrls||[]},'draft');setLegacyDrafts(previous=>previous.filter(p=>p.id!==draft.id));}showToast('Recovered browser posts as shared drafts for review.');}catch(error){showToast((error as Error).message,'warning');}finally{setRecoveringDrafts(false);}
+    setRecoveringDrafts(true);
+    try {
+      const response=await apiFetch('/api/posts');
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.error);
+      const savedPosts:PostItem[]=result.posts;
+      for(const draft of legacyDrafts){
+        const id=`recovered-${draft.id}`.slice(0,100);
+        const saved=savedPosts.find(post=>post.id===id);
+        if(saved)acceptPost(saved);
+        else await savePost({...draft,id,platforms:draft.platforms.filter(p=>['facebook','bluesky','website'].includes(p)),tags:draft.tags||[],mediaUrls:draft.mediaUrls||[]},'draft');
+        setLegacyDrafts(previous=>previous.filter(p=>p.id!==draft.id));
+      }
+      showToast('Recovered browser posts as shared drafts for review.');
+    }catch(error){showToast((error as Error).message,'warning');}finally{setRecoveringDrafts(false);}
   };
   const scheduleSaved=async(post:PostItem,instant=false,date=post.scheduledFor)=>{
     const response=await apiFetch(`/api/posts/${post.id}/schedule`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expectedRevision:post.revision,scheduledFor:date,instant})});
@@ -177,9 +191,18 @@ export default function App() {
     await savePost(data,'submit',editingPost);setEditingPost(null);setActiveTab('queue');showToast('Post saved and submitted for approval.');
   };
   const composerDelivery=async(data:Partial<PostItem>,instant:boolean)=>{
-    let post=await savePost(data,'submit',editingPost);
-    post=await savePost(post,'approve',post);
-    post=await scheduleSaved(post,instant);setEditingPost(null);setActiveTab(instant?'queue':'calendar');
+    if(!instant && (!data.scheduledFor || !Number.isFinite(Date.parse(data.scheduledFor)) || Date.parse(data.scheduledFor)<Date.now()+60000))throw new Error('Choose a schedule at least one minute in the future. Your draft is still open.');
+    let post:PostItem|undefined;
+    try {
+      post=await savePost(data,'submit',editingPost);
+      post=await savePost(post,'approve',post);
+      post=await scheduleSaved(post,instant);
+    } catch(error) {
+      // A later step may fail after a successful save. Keep that saved revision for retries.
+      if(post)setEditingPost(post);
+      throw error;
+    }
+    setEditingPost(null);setActiveTab(instant?'queue':'calendar');
     const failed=post.deliveryStates?.some(d=>d.state==='failed'||d.state==='uncertain');
     showToast(failed?'Delivery needs attention. Check the queue for the platform result.':instant?'Delivery processed. Check the queue for results.':'Post saved to the publishing schedule.',failed?'warning':'success');
   };
