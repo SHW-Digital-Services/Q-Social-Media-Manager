@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StaffUser, signInStaff, getSupabaseClient } from '../lib/supabase';
+import { StaffUser, signInStaff, signInStaffWithMicrosoft, getSupabaseClient } from '../lib/supabase';
 import { QLogo } from './QLogo';
 import { 
   ShieldCheck, 
@@ -33,6 +33,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false);
+
+  const handleMicrosoftSignIn = async () => {
+    setError(null);
+    setIsMicrosoftLoading(true);
+    try { await signInStaffWithMicrosoft(); }
+    catch (error) { setError((error as Error).message); setIsMicrosoftLoading(false); }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();setError(null);setIsLoading(true);
@@ -96,10 +104,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           {isResetView && error && <p role="alert" className="text-rose-300 text-sm mb-3">{error}</p>}
           {!isResetView ? (
             /* Login Form */
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <>
+            <div className="space-y-5">
               <div className="border-b border-white/10 pb-4">
                 <h2 className="text-lg font-bold text-white font-display">Sign In</h2>
-                <p className="text-xs text-slate-400">Enter your credentials to access your workspace.</p>
+                <p className="text-xs text-slate-400">Use your authorised Microsoft staff account to access your workspace.</p>
               </div>
 
               {error && (
@@ -109,6 +118,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 </div>
               )}
 
+              <button type="button" onClick={() => void handleMicrosoftSignIn()} disabled={isMicrosoftLoading || isLoading} className="flex w-full items-center justify-center gap-3 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100 disabled:opacity-60">
+                <span aria-hidden="true" className="grid h-4 w-4 grid-cols-2 gap-[2px]"><span className="bg-[#f25022]"/><span className="bg-[#7fba00]"/><span className="bg-[#00a4ef]"/><span className="bg-[#ffb900]"/></span>
+                {isMicrosoftLoading ? 'Connecting to Microsoft…' : 'Sign in with Microsoft'}
+              </button>
+              <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider text-slate-500"><span className="h-px flex-1 bg-white/10"/>or use password<span className="h-px flex-1 bg-white/10"/></div>
+            </div>
+            <form onSubmit={handleSubmit} className="mt-5 space-y-5">
               {/* Email field */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-300 block">
@@ -182,6 +198,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 )}
               </button>
             </form>
+            </>
           ) : (
             /* Password Reset View */
             <div className="space-y-5 animate-in fade-in duration-200">

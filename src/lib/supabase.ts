@@ -102,3 +102,13 @@ export async function signInStaff(email: string, password: string): Promise<Staf
   if(!response.ok) { await supabase.auth.signOut(); throw new Error(result.error); }
   return result.user;
 }
+
+export async function signInStaffWithMicrosoft(): Promise<void> {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error('Authentication is not configured. Contact the site administrator.');
+  const { error } = await supabase.auth.signInWithSSO({
+    domain: 'q-ai.online',
+    options: { redirectTo: new URL('/', window.location.origin).toString() }
+  });
+  if (error) throw error;
+}
