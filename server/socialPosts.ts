@@ -39,22 +39,40 @@ export async function readFacebookPosts(req: Request) {
   if (!pages.length) throw new Error('No Facebook Pages were granted to this login. Reconnect Facebook, grant pages_show_list and pages_read_engagement, and select the Page you manage.');
   if (!page) throw new Error((process.env.FACEBOOK_PAGE_ID || process.env.META_FACEBOOK_PAGE_ID) ? 'The configured Facebook Page was not granted to this login. Reconnect and select that Page.' : 'Multiple Facebook Pages are connected. Set FACEBOOK_PAGE_ID to the Page to sync.');
   const warnings: string[] = [];
-  let measured = true;
-  let published: any;
-  try {
-    published = await read(`${graph}/${page.id}/published_posts?fields=id,message,created_time,reactions.limit(0).summary(true),comments.limit(0).summary(true),shares&limit=100`, page.access_token);
-  } catch (error) {
-    measured = false;
-    const detail = (error as Error).message;
-    const permission = detail.includes('pages_read_user_content') ? 'pages_read_user_content' : 'pages_read_engagement';
-    warnings.push(`Facebook interaction counts are unavailable: ${detail} If this is a permission error, enable ${permission} for the Meta app, then reconnect Facebook and grant it for the selected Page. Reconnecting alone cannot resolve missing app access.`);
-    published = await read(`${graph}/${page.id}/published_posts?fields=id,message,created_time&limit=100`, page.access_token);
-  }
+  // Load post text independently: optional insight permissions must never hide usable posts.
+  const published = await read(`${graph}/${page.id}/published_posts?fields=id,message,created_time&limit=100`, page.access_token);
+  const publishedItems: any[] = published.data || [];
+  const counts = new Map<string, { likes?: number; comments?: number; shares?: number }>();
+  const readCounts = async (kind: 'reactions' | 'comments' | 'shares', permission: string) => {
+    try {
+      const field = kind === 'shares' ? 'shares' : `${kind}.limit(0).summary(true)`;
+      const result = await read(`${graph}/${page.id}/published_posts?fields=id,${field}&limit=100`, page.access_token);
+      for (const item of result.data || []) {
+        const value = counts.get(item.id) || {};
+        if (kind === 'reactions') value.likes = item.reactions?.summary?.total_count || 0;
+        if (kind === 'comments') value.comments = item.comments?.summary?.total_count || 0;
+        if (kind === 'shares') value.shares = item.shares?.count || 0;
+        counts.set(item.id, value);
+      }
+    } catch (error) {
+      const detail = (error as Error).message;
+      warnings.push(`Facebook ${kind} counts are unavailable: ${detail} Check that ${permission} has the required access for this Meta app and selected Page. If you changed app access, reconnect Facebook and grant the permission for that Page.`);
+    }
+  };
+  await Promise.all([
+    readCounts('reactions', 'pages_read_engagement'),
+    readCounts('comments', 'pages_read_user_content'),
+    readCounts('shares', 'pages_read_engagement'),
+  ]);
   let scheduled: any = { data: [] };
   try { scheduled = await read(`${graph}/${page.id}/scheduled_posts?fields=id,message,scheduled_publish_time&limit=100`, page.access_token); }
   catch(error) { warnings.push(`Facebook scheduled posts could not be read: ${(error as Error).message}`); }
   const posts = [
-    ...(published.data || []).map((p: any) => platformPost('facebook', p.id, p.message || '', p.created_time, page.name, measured ? { likes: p.reactions?.summary?.total_count || 0, comments: p.comments?.summary?.total_count || 0, shares: p.shares?.count || 0 } : undefined)),
+    ...publishedItems.map((p: any) => {
+      const engagement = counts.get(p.id);
+      return platformPost('facebook', p.id, p.message || '', p.created_time, page.name,
+        engagement && Object.keys(engagement).length ? engagement : undefined);
+    }),
     ...(scheduled.data || []).map((p: any) => platformPost('facebook', p.id, p.message || '', new Date(p.scheduled_publish_time * 1000).toISOString(), page.name, undefined, true)),
   ] as PostItem[] & { warnings?: string[] };
   posts.warnings = warnings;

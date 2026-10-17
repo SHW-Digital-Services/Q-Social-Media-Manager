@@ -11,6 +11,10 @@ export function database() {
 }
 export function requireDatabase<T>(result: { data: T; error: any }): NonNullable<T> {
   if(result.error?.code==='P0001')throw Object.assign(new Error('Delivery has already started or the post is not approved. Refresh the queue and check the platform before retrying.'),{status:409});
-  if (result.error) throw Object.assign(new Error(result.error.code === '40001' || result.error.code === '23505' ? 'This post changed on another device. Refresh before saving.' : 'Shared storage could not complete the request. Your draft has been kept.'),{status: ['40001','23505'].includes(result.error.code)?409:503});
+  if (result.error) {
+    const conflict = ['40001','23505'].includes(result.error.code);
+    const code = typeof result.error.code === 'string' && /^[A-Z0-9]{2,10}$/.test(result.error.code) ? result.error.code : 'unknown';
+    throw Object.assign(new Error(conflict ? 'This post changed on another device. Refresh before saving.' : `Shared storage could not complete the request (Supabase error ${code}). Your draft has been kept. Check the server’s Supabase connection and database logs.`),{status: conflict?409:503});
+  }
   return result.data as NonNullable<T>;
 }

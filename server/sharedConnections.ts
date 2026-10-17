@@ -31,14 +31,14 @@ export async function sharedConnections(req: Request, res: Response, next: NextF
           // An empty tombstone prevents old browser cookies from restoring a disconnected account.
           requireDatabase(await database().from('social_manager_connections').upsert({cookie_name:name,ciphertext:value||'',updated_at:new Date().toISOString()}));
         }
-      })().then(()=>end(...args as [any])).catch(()=>{
-        if(!res.headersSent) { res.status(503); res.removeHeader('Content-Length'); res.removeHeader('Location'); res.removeHeader('Set-Cookie'); res.setHeader('Content-Type','application/json'); end(JSON.stringify({error:'The social login could not be saved securely. Reconnect and try again.'})); }
+      })().then(()=>end(...args as [any])).catch((error: any)=>{
+        if(!res.headersSent) { res.status(503); res.removeHeader('Content-Length'); res.removeHeader('Location'); res.removeHeader('Set-Cookie'); res.setHeader('Content-Type','application/json'); end(JSON.stringify({error:`The social login could not be saved securely. ${error?.message || 'Check shared storage and try again.'}`})); }
         else end();
       });
       return res;
     }) as typeof res.end;
     next();
-  } catch { res.status(503).json({error:'Shared social connections could not be loaded. Try again shortly.'}); }
+  } catch (error: any) { res.status(503).json({error:`Shared social connections could not be loaded. ${error?.message || 'Check shared storage and try again.'}`}); }
 }
 export async function connectionCookies() {
   const rows = requireDatabase(await database().from('social_manager_connections').select('cookie_name,ciphertext'));
