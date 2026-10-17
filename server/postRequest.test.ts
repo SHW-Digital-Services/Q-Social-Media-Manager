@@ -5,7 +5,7 @@ import { nextPost } from './posts.js';
 import { staffIdentity } from './staffAuth.js';
 
 test('image-heavy posts can be approved and reviewed without resending saved media', () => {
-  const lead = staffIdentity({ id: 'lead', email: 'scott@q-ai.online', email_confirmed_at: '2026-01-01' })!;
+  const lead = staffIdentity({ id: 'lead', email: 'scott@q-ai.online', email_confirmed_at: '2026-01-01' }, 'partner_admin')!;
   const image = 'data:image/png;base64,' + 'A'.repeat(2_000_000);
   const pending = nextPost(null, { title: 'Review', content: 'A community update.', platforms: ['facebook'], mediaUrls: [image], tags: [] }, 'submit', lead, 'post');
   pending.versionHistory = Array(3).fill(pending.versionHistory![0]);

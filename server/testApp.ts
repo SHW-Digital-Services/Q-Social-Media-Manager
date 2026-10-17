@@ -11,6 +11,6 @@ export async function providerTestApp() {
     const failed=results.filter(r=>r.status!=='published');
     res.status(failed.length?(failed.some(r=>r.status==='failed')?502:409):200).json({success:!failed.length,results});
   });
-  app.use(await createApp({authenticate:(_req,res,next)=>{res.locals.staff={id:'synthetic-user',email:'scott@q-ai.online'};next();},connections:(_req,_res,next)=>next()}));
+  app.use(await createApp({authenticate:(_req,res,next)=>{res.locals.staff={id:'synthetic-user',email:'scott@q-ai.online',role:'admin'};next();},connections:(_req,_res,next)=>next()}));
   return app;
 }

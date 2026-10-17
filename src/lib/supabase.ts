@@ -15,56 +15,6 @@ export interface StaffUser {
   isStaffOnly: boolean;
 }
 
-// Authorized Staff Directory (Users allowed in Supabase Auth policy)
-export const AUTHORIZED_STAFF_ACCOUNTS: StaffUser[] = [
-  {
-    id: 'staff-scott-qai',
-    email: 'scott@q-ai.online',
-    name: 'Scott Harvey-Whittle',
-    role: 'admin',
-    title: 'Lead Approver & Communications Director',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-    isStaffOnly: true
-  },
-  {
-    id: 'staff-scott-ou',
-    email: 'scott.harveywhittle@ou.ac.uk',
-    name: 'Scott Harvey-Whittle',
-    role: 'admin',
-    title: 'Lead Approver & Open University Communications Fellow',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-    isStaffOnly: true
-  }
-];
-
-// Explicit list of accounts revoked/unauthorized in Supabase Auth
-export const UNAUTHORIZED_ACCOUNTS: Array<{ name: string; email: string; formerRole: string; reason: string }> = [
-  {
-    name: 'Jordan Vance',
-    email: 'jordan.vance@qintelligence.org',
-    formerRole: 'Former Editorial Reviewer',
-    reason: 'Account revoked in Supabase Auth RLS policies. Unauthorized to access the platform.'
-  },
-  {
-    name: 'Morgan Blake',
-    email: 'morgan.blake@qintelligence.org',
-    formerRole: 'Former Community Safety Officer',
-    reason: 'Account revoked in Supabase Auth RLS policies. Unauthorized to access the platform.'
-  }
-];
-
-export function verifySupabaseStaffAccess(email: string): {
-  authorized: boolean;
-  user?: StaffUser;
-  error?: string;
-  isExplicitlyRevoked?: boolean;
-} {
-  const normalized = email.trim().toLowerCase();
-
-  const matched = AUTHORIZED_STAFF_ACCOUNTS.find(user => user.email.toLowerCase() === normalized);
-  return matched ? { authorized: true, user: { ...matched, role: normalized === 'scott@q-ai.online' ? 'admin' : 'staff' } } : { authorized: false, error: 'This account is not authorised for this workspace.' };
-}
-
 let supabaseInstance: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient | null {

@@ -68,7 +68,7 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
   onInsertTagIntoComposer,
   currentUser,
 }) => {
-  const isLeadApprover = currentUser?.email?.toLowerCase() === 'scott@q-ai.online';
+  const isLeadApprover = currentUser?.role === 'admin';
   const [selectedStatus, setSelectedStatus] = useState<PostStatus | 'all'>('all');
   const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -140,12 +140,12 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
               {isLeadApprover ? (
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/20 border border-emerald-400/40 rounded-full text-xs font-semibold text-emerald-300 backdrop-blur-xs">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Lead Approver Authorized (scott@q-ai.online)</span>
+                  <span>Admin approval access</span>
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 border border-amber-400/40 rounded-full text-xs font-semibold text-amber-300 backdrop-blur-xs" title="Only scott@q-ai.online can approve posts">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 border border-amber-400/40 rounded-full text-xs font-semibold text-amber-300 backdrop-blur-xs" title="Only Admin accounts can approve posts">
                   <Lock className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Reviewer Mode (scott@q-ai.online approval required)</span>
+                  <span>Reviewer Mode (Admin approval required)</span>
                 </div>
               )}
             </div>
@@ -563,13 +563,13 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                         </button>
                       )}
 
-                      {/* 1-Click Approve or Publish - Restricted to scott@q-ai.online */}
+                      {/* 1-Click Approve or Publish - Restricted to Admin */}
                       {isPending && (
                         isLeadApprover ? (
                           <button
                             onClick={() => onApprovePost(post.id)}
                             className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-2xs transition-colors cursor-pointer"
-                            title="Authorized: Lead Approver (scott@q-ai.online)"
+                            title="Authorized: Admin"
                           >
                             <Check className="w-3.5 h-3.5" />
                             <span>Approve Post</span>
@@ -577,10 +577,10 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                         ) : (
                           <div
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed"
-                            title="Approval restricted: Only Lead Approver (scott@q-ai.online) can approve posts"
+                            title="Approval restricted: Admin access required"
                           >
                             <Lock className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Approval Locked (scott@q-ai.online only)</span>
+                            <span>Approval Locked (Admin only)</span>
                           </div>
                         )
                       )}
@@ -589,7 +589,7 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                         !isLeadApprover ? (
                           <div
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed"
-                            title="Website broadcast requires Owner (scott@q-ai.online) sign-off"
+                            title="Website broadcast requires Admin sign-off"
                           >
                             <Lock className="w-3.5 h-3.5 text-slate-400" />
                             <span>Owner Required for Website (Scott)</span>

@@ -4,18 +4,21 @@ import http from 'node:http';
 import {staffIdentity} from './staffAuth.js';
 import {nextPost} from './posts.js';
 import {deliveryState} from './publishingWorker.js';
-const lead=staffIdentity({id:'test-id',email:'scott@q-ai.online',email_confirmed_at:'2026-01-01'})!;
+const lead=staffIdentity({id:'test-id',email:'scott@q-ai.online',email_confirmed_at:'2026-01-01'},'partner_admin')!;
 const draft={title:'Durable draft',content:'A community update with welcoming copy.',platforms:['facebook'] as any,mediaUrls:[],tags:[],scheduledFor:null};
-test('verified staff identities cannot be promoted through email suffixes or user claims',()=>{
- assert.equal(staffIdentity({id:'id',email:'attacker@q-ai.online',email_confirmed_at:'today',app_metadata:{isAdmin:true}}),null);
- assert.equal(staffIdentity({id:'id',email:'scott@q-ai.online'}),null);
- assert.equal(staffIdentity({id:'id',email:'scott.harveywhittle@ou.ac.uk',email_confirmed_at:'today'})?.role,'staff');
+test('social access follows the assigned profile role rather than email allowlists or user claims',()=>{
+ const verified={id:'id',email:'person@example.com',email_confirmed_at:'today'};
+ assert.equal(staffIdentity(verified,'social_media_manager')?.role,'staff');
+ assert.equal(staffIdentity(verified,'partner_admin')?.role,'admin');
+ assert.equal(staffIdentity({...verified,email:'attacker@q-ai.online',app_metadata:{isAdmin:true}}),null);
+ assert.equal(staffIdentity(verified,'staff'),null);
+ assert.equal(staffIdentity({...verified,email_confirmed_at:undefined},'social_media_manager'),null);
 });
-test('queue transitions retain content, enforce lead review and block edits after scheduling',()=>{
+test('queue transitions retain content, require admin review and block edits after scheduling',()=>{
  const saved=nextPost(null,draft,'draft',lead,'synthetic-draft');
  const pending=nextPost(saved,draft,'submit',lead,saved.id);
  assert.equal(pending.content,draft.content);assert.equal(pending.status,'pending_approval');assert.equal(pending.versionHistory?.length,2);
- assert.throws(()=>nextPost(pending,draft,'approve',{...lead,email:'scott.harveywhittle@ou.ac.uk',role:'staff'},saved.id),/lead approver/);
+ assert.throws(()=>nextPost(pending,draft,'approve',{...lead,email:'scott.harveywhittle@ou.ac.uk',role:'staff'},saved.id),/Admin/);
  const approved=nextPost(pending,draft,'approve',lead,saved.id);assert.equal(approved.status,'approved');assert.equal(approved.approvedBy,lead.email);
  assert.throws(()=>nextPost({...approved,status:'scheduled'},draft,'draft',lead,saved.id),/Cancel the schedule/);
  assert.throws(()=>nextPost(null,{...draft,content:''},'submit',lead,'new'),/Write the post/);

@@ -57,7 +57,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
   const draftKey = `q-social-composer-v2:${currentUser?.id}:${initialPost?.id || 'new'}`;
   const [restored] = useState<Partial<PostItem> | null>(() => { try { const raw=localStorage.getItem(draftKey); return raw ? JSON.parse(raw) : null; } catch { return null; } });
   const startingPost=restored || initialPost;
-  const isOwner = currentUser?.email?.toLowerCase() === 'scott@q-ai.online' || currentUser?.role === 'admin';
+  const isOwner = currentUser?.role === 'admin';
   const [title, setTitle] = useState(startingPost?.title || '');
   const [content, setContent] = useState(startingPost?.content || '');
   const [selectedPlatforms, setSelectedPlatforms] = useState<SocialPlatform[]>(

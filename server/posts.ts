@@ -23,7 +23,7 @@ export function nextPost(existing: PostItem | null, incoming: Partial<PostItem>,
   const now=new Date().toISOString();
   if(existing?.status==='published') throw new Error('Published posts cannot be changed here. Create a new draft.');
   if(existing?.status==='scheduled') throw new Error('Cancel the schedule before editing this post.');
-  if(['approve','changes'].includes(action) && staff.email!=='scott@q-ai.online') throw Object.assign(new Error('Only the lead approver can review posts.'),{status:403});
+  if(['approve','changes'].includes(action) && staff.role!=='admin') throw Object.assign(new Error('Only an Admin can review posts.'),{status:403});
   if(action==='approve' && existing?.status!=='pending_approval') throw new Error('Only a pending post can be approved.');
   if(action==='changes' && !incoming.feedback?.trim()) throw new Error('Explain the requested changes.');
   const editable=['draft','submit'].includes(action);

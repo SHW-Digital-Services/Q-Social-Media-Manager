@@ -20,7 +20,7 @@ import { VersionHistoryModal } from './components/VersionHistoryModal';
 import { StaffAuthModal } from './components/StaffAuthModal';
 import { StaffQuickGuideModal } from './components/StaffQuickGuideModal';
 import { QLogo } from './components/QLogo';
-import { AUTHORIZED_STAFF_ACCOUNTS, StaffUser, apiFetch, getSupabaseClient } from './lib/supabase';
+import { StaffUser, apiFetch, getSupabaseClient } from './lib/supabase';
 import { getSocialPlatformLabel } from './utils/socialOAuth';
 import { postRequest } from './utils/postRequest';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';

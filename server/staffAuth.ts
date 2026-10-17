@@ -4,11 +4,18 @@ import { isBlueskySameOrigin } from './bluesky.js';
 import { database } from './database.js';
 export type StaffIdentity = { id: string; email: string; name: string; role: 'admin' | 'staff'; title: string; avatar: string; isStaffOnly: boolean };
 export const LEAD_EMAIL = 'scott@q-ai.online';
-export function staffIdentity(user: { id: string; email?: string; email_confirmed_at?: string; app_metadata?: Record<string, unknown> }): StaffIdentity | null {
+export function staffIdentity(user: { id: string; email?: string; email_confirmed_at?: string; app_metadata?: Record<string, unknown> }, profileRole?: string | null): StaffIdentity | null {
   const email = user.email?.toLowerCase();
-  const allowed = (process.env.SOCIAL_STAFF_EMAILS || 'scott@q-ai.online,scott.harveywhittle@ou.ac.uk').split(',').map(v => v.trim().toLowerCase());
-  if (!email || !user.email_confirmed_at || !allowed.includes(email)) return null;
-  return { id: user.id, email, name: email === LEAD_EMAIL || email === 'scott.harveywhittle@ou.ac.uk' ? 'Scott Harvey-Whittle' : email.split('@')[0], role: email === LEAD_EMAIL ? 'admin' : 'staff', title: email === LEAD_EMAIL ? 'Lead Approver & Communications Director' : 'Social Media Officer', avatar: 'https://brnhalxydcakutxiregp.supabase.co/storage/v1/object/public/images/Logo.png', isStaffOnly: true };
+  if (!email || !user.email_confirmed_at || !['partner_admin', 'social_media_manager'].includes(profileRole || '')) return null;
+  const admin = profileRole === 'partner_admin';
+  return { id: user.id, email, name: email === LEAD_EMAIL || email === 'scott.harveywhittle@ou.ac.uk' ? 'Scott Harvey-Whittle' : email.split('@')[0], role: admin ? 'admin' : 'staff', title: admin ? 'Administrator' : 'Social Media Manager', avatar: 'https://brnhalxydcakutxiregp.supabase.co/storage/v1/object/public/images/Logo.png', isStaffOnly: !admin };
+}
+
+async function authorisedIdentity(user: { id: string; email?: string; email_confirmed_at?: string; app_metadata?: Record<string, unknown> }) {
+  if (!user.email || !user.email_confirmed_at) return null;
+  const { data: profile, error } = await database().from('profiles').select('role').eq('id', user.id).maybeSingle();
+  if (error) throw error;
+  return staffIdentity(user, profile?.role);
 }
 const options = () => ({ httpOnly: true, secure: Boolean(process.env.VERCEL) || process.env.NODE_ENV === 'production', sameSite: 'lax' as const, path: '/api', maxAge: 3600000 });
 function key() {
@@ -36,15 +43,15 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   if (!token) return res.status(401).json({ error: 'Sign in to access this workspace.' });
   try {
     const {data,error} = await database().auth.getUser(token);
-    const staff = !error && data.user ? staffIdentity(data.user) : null;
+    const staff = !error && data.user ? await authorisedIdentity(data.user) : null;
     if (!staff) return res.status(error ? 401 : 403).json({ error: 'Your session expired or this account is not authorised for this workspace.' });
-    if (/^\/(oauth|bluesky\/(connect|disconnect)|website\/connect|social\/[^/]+\/disconnect)/.test(req.path) && staff.email!==LEAD_EMAIL) return res.status(403).json({error:'Only the lead approver can manage shared social connections.'});
+    if (/^\/(oauth|bluesky\/(connect|disconnect)|website\/connect|social\/[^/]+\/disconnect)/.test(req.path) && staff.role !== 'admin') return res.status(403).json({error:'Only an Admin can manage shared social connections.'});
     res.locals.staff = staff;
     next();
   } catch { res.status(503).json({ error: 'Authentication is temporarily unavailable. Try again shortly.' }); }
 }
 export function requireApprover(res: Response) {
-  if (res.locals.staff?.email !== LEAD_EMAIL) throw Object.assign(new Error('Only the lead approver can approve, publish or schedule posts.'), { status: 403 });
+  if (res.locals.staff?.role !== 'admin') throw Object.assign(new Error('Only an Admin can approve, publish or schedule posts.'), { status: 403 });
 }
 export function registerStaffRoutes(app: Express) {
   app.post('/api/auth/session', async (req, res) => {
@@ -52,7 +59,7 @@ export function registerStaffRoutes(app: Express) {
     if (!token) return res.status(401).json({ error: 'A valid sign-in session is required.' });
     try {
       const {data,error} = await database().auth.getUser(token);
-      const staff = !error && data.user ? staffIdentity(data.user) : null;
+      const staff = !error && data.user ? await authorisedIdentity(data.user) : null;
       if (!staff) return res.status(403).json({ error: 'This account is not authorised for this workspace.' });
       res.cookie('q_staff_session', seal(token), options());
       res.json({user:staff});

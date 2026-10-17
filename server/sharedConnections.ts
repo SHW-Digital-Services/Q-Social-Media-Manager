@@ -7,8 +7,8 @@ export async function sharedConnections(req: Request, res: Response, next: NextF
   if (!res.locals.staff || !/^\/(social|bluesky|website|oauth|publish|schedule|posts)/.test(req.path)) return next();
   try {
     let rows = requireDatabase(await database().from('social_manager_connections').select('cookie_name,ciphertext'));
-    // Preserve a lead approver's existing encrypted connections during the shared-storage upgrade.
-    if(res.locals.staff.email==='scott@q-ai.online') {
+    // Preserve an Admin's existing encrypted connections during the shared-storage upgrade.
+    if(res.locals.staff.role==='admin') {
       for(const name of names) {
         const value=(req.headers.cookie||'').split(';').map(v=>v.trim()).find(v=>v.startsWith(`${name}=`))?.slice(name.length+1);
         const valid=name==='q_bluesky_session'?getBlueskySession(req):getSocialSession(req,name.slice('q_social_'.length));
