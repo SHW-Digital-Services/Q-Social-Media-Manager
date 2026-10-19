@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrandAsset, BrandColorSwatch, AssetVersion } from '../types';
 import { BRAND_ASSETS, BRAND_COLORS, Q_LOGO_URL } from '../data/brandData';
 import { QLogo } from './QLogo';
@@ -15,6 +15,8 @@ import {
   Tag, 
   ExternalLink,
   Plus,
+  Pencil,
+  Trash2,
   History,
   RotateCcw,
   Clock,
@@ -31,29 +33,43 @@ interface MediaLibraryProps {
   onInsertIntoComposer?: (url: string) => void;
 }
 
+const ASSET_STORAGE_KEY = 'q-intelligence-official-assets-v1';
+
+const getInitialAssets = (): BrandAsset[] => {
+  const defaults = BRAND_ASSETS.map((a) => ({
+    ...a,
+    currentVersion: a.currentVersion || 'v1.0',
+    versionHistory: a.versionHistory || [{
+      versionId: `v-init-${a.id}`,
+      versionNumber: 'v1.0',
+      fileUrl: a.fileUrl,
+      uploadedAt: '2026-09-18 10:00 AM',
+      uploadedBy: 'Jordan Vance (Brand Admin)',
+      dimensions: a.dimensions,
+      format: a.format,
+      changeNotes: 'Initial approved master brand asset upload.',
+      fileSize: '1.4 MB'
+    }]
+  }));
+  try {
+    const saved = localStorage.getItem(ASSET_STORAGE_KEY);
+    if (saved) {
+      const parsed: unknown = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.every((asset) => asset && typeof asset.id === 'string' && typeof asset.fileUrl === 'string')) return parsed;
+    }
+  } catch { /* Use the bundled library when storage is unavailable or invalid. */ }
+  return defaults;
+};
+
 export const MediaLibrary: React.FC<MediaLibraryProps> = ({
   onInsertIntoComposer,
 }) => {
   // Initialize assets with version control metadata
-  const [assets, setAssets] = useState<BrandAsset[]>(() => {
-    return BRAND_ASSETS.map((a, idx) => ({
-      ...a,
-      currentVersion: a.currentVersion || 'v1.0',
-      versionHistory: a.versionHistory || [
-        {
-          versionId: `v-init-${a.id}`,
-          versionNumber: 'v1.0',
-          fileUrl: a.fileUrl,
-          uploadedAt: '2026-09-18 10:00 AM',
-          uploadedBy: 'Jordan Vance (Brand Admin)',
-          dimensions: a.dimensions,
-          format: a.format,
-          changeNotes: 'Initial approved master brand asset upload.',
-          fileSize: '1.4 MB'
-        }
-      ]
-    }));
-  });
+  const [assets, setAssets] = useState<BrandAsset[]>(getInitialAssets);
+  useEffect(() => {
+    try { localStorage.setItem(ASSET_STORAGE_KEY, JSON.stringify(assets)); }
+    catch (error) { console.warn('Unable to save the asset library in this browser.', error); }
+  }, [assets]);
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,6 +83,8 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
   const [uploadCategory, setUploadCategory] = useState<BrandAsset['category']>('graphic');
   const [uploadUrl, setUploadUrl] = useState('');
   const [uploadTags, setUploadTags] = useState('brand, official');
+  const [uploadDescription, setUploadDescription] = useState('Uploaded by Social Media Officer.');
+  const [editingAsset, setEditingAsset] = useState<BrandAsset | null>(null);
 
   // Asset Version Control Modals state
   const [activeHistoryAsset, setActiveHistoryAsset] = useState<BrandAsset | null>(null);
@@ -149,7 +167,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
       fileUrl: uploadUrl.trim(),
       dimensions: 'Custom',
       format: 'PNG/JPG',
-      description: 'Uploaded by Social Media Officer.',
+      description: uploadDescription.trim(),
       tags: uploadTags.split(',').map(t => t.trim().toLowerCase()),
       isOfficial: false,
       backgroundRecommended: 'any',
@@ -161,7 +179,39 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
     setShowUploadModal(false);
     setUploadTitle('');
     setUploadUrl('');
+    setUploadDescription('Uploaded by Social Media Officer.');
     confetti({ particleCount: 50, spread: 50 });
+  };
+
+  const handleEditAsset = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAsset || !uploadTitle.trim() || !uploadUrl.trim()) return;
+    setAssets(prev => prev.map(asset => {
+      if (asset.id !== editingAsset.id) return asset;
+      const changedFile = uploadUrl.trim() !== asset.fileUrl;
+      const nextVersion = `v${(asset.versionHistory?.length || 1) + 1}.0`;
+      const version: AssetVersion = { versionId: `v-${Date.now()}`, versionNumber: nextVersion, fileUrl: uploadUrl.trim(), uploadedAt: new Date().toLocaleString(), uploadedBy: 'Library editor', dimensions: asset.dimensions, format: asset.format, changeNotes: 'Asset details or source file updated.', fileSize: 'Custom' };
+      return { ...asset, title: uploadTitle.trim(), category: uploadCategory, fileUrl: uploadUrl.trim(), description: uploadDescription.trim(), currentVersion: changedFile ? nextVersion : asset.currentVersion, tags: uploadTags.split(',').map(tag => tag.trim().toLowerCase()).filter(Boolean), versionHistory: changedFile ? [version, ...(asset.versionHistory || [])] : asset.versionHistory };
+    }));
+    setEditingAsset(null);
+    setShowUploadModal(false);
+    setUploadTitle(''); setUploadUrl(''); setUploadTags('brand, official'); setUploadDescription('Uploaded by Social Media Officer.');
+  };
+
+  const openEditAsset = (asset: BrandAsset) => {
+    setEditingAsset(asset);
+    setUploadTitle(asset.title);
+    setUploadCategory(asset.category);
+    setUploadUrl(asset.fileUrl);
+    setUploadTags(asset.tags.join(', '));
+    setUploadDescription(asset.description);
+    setShowUploadModal(true);
+  };
+
+  const handleDeleteAsset = (asset: BrandAsset) => {
+    if (!window.confirm(`Delete “${asset.title}” from the asset library? This cannot be undone.`)) return;
+    setAssets(prev => prev.filter(item => item.id !== asset.id));
+    if (activeHistoryAsset?.id === asset.id) setActiveHistoryAsset(null);
   };
 
   // Upload a new tracked version of an existing asset
@@ -437,6 +487,12 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
                       </button>
 
                       <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => openEditAsset(asset)} className="text-slate-500 hover:text-purple-700 font-medium flex items-center gap-1 cursor-pointer" aria-label={`Edit ${asset.title}`}>
+                          <Pencil className="w-3 h-3" /><span>Edit</span>
+                        </button>
+                        <button type="button" onClick={() => handleDeleteAsset(asset)} className="text-rose-500 hover:text-rose-700 font-medium flex items-center gap-1 cursor-pointer" aria-label={`Delete ${asset.title}`}>
+                          <Trash2 className="w-3 h-3" /><span>Delete</span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => setAlteringAsset(asset)}
@@ -678,13 +734,13 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm">Upload New Asset</h3>
+              <h3 className="font-bold text-slate-900 text-sm">{editingAsset ? 'Edit Asset' : 'Upload New Asset'}</h3>
               <button onClick={() => setShowUploadModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleUploadNewAsset} className="space-y-3 text-xs">
+            <form onSubmit={editingAsset ? handleEditAsset : handleUploadNewAsset} className="space-y-3 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Asset Title</label>
                 <input
@@ -724,6 +780,16 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
               </div>
 
               <div>
+                <label className="block font-semibold text-slate-700 mb-1">Description</label>
+                <textarea
+                  rows={2}
+                  value={uploadDescription}
+                  onChange={(e) => setUploadDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div>
                 <label className="block font-semibold text-slate-700 mb-1">Tags (comma separated)</label>
                 <input
                   type="text"
@@ -737,7 +803,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowUploadModal(false)}
+                  onClick={() => { setShowUploadModal(false); setEditingAsset(null); setUploadTitle(''); setUploadUrl(''); }}
                   className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
                 >
                   Cancel
@@ -746,7 +812,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
                   type="submit"
                   className="px-4 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-xl cursor-pointer shadow-xs"
                 >
-                  Add to Library
+                  {editingAsset ? 'Save Changes' : 'Add to Library'}
                 </button>
               </div>
             </form>
