@@ -1,0 +1,12 @@
+import path from 'node:path'; import {pathToFileURL} from 'node:url';
+const {FileBlob,PresentationFile}=await import(pathToFileURL('C:\\Users\\ScottHarvey-Whittle\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\node_modules\\@oai\\artifact-tool\\dist\\artifact_tool.mjs').href);
+const skillDir='C:/Users/ScottHarvey-Whittle/.codex/plugins/cache/openai-primary-runtime/presentations/26.1015.12040/skills/presentations';
+const workspaceDir='E:/dev/Q-Social-Media-Manager';
+const draft=path.join(workspaceDir,'.build_social/draft.pptx');
+const finalPath=path.join(workspaceDir,'output/Q Social Media Officer Induction with Facilitator Notes.pptx');
+const {finalizePresentation}=await import(pathToFileURL(path.join(skillDir,'container_tools/artifact_tool_utils.mjs')).href);
+const stagingDir=path.join(workspaceDir,'.build_social/.codex-finalizer'); const fs=await import('node:fs/promises'); await fs.mkdir(stagingDir,{recursive:true});
+const candidatePath=path.join(stagingDir,'candidate.pptx'); await (await PresentationFile.exportPptx(await PresentationFile.importPptx(await FileBlob.load(draft)))).save(candidatePath);
+const refs=Array.from({length:22},(_,i)=>i+1);
+const res=await finalizePresentation({explicitTotalSlideCount:22,requiredNativeTableOwnerSlides:[],requiredNativeChartOwnerSlides:[],sourceTemplatePath:'C:/Users/ScottHarvey-Whittle/OneDrive - SHW/Documents/Q/Training/CS/Q Customer Service Agent Induction with Facilitator Notes.pptx',requiredTemplateReferenceSlides:refs,minimumTemplateCoverageRatio:1.0,workspaceDir,candidatePath,finalPath,pythonExecutable:'C:/Users/ScottHarvey-Whittle/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe',integrityValidatorPath:path.join(skillDir,'container_tools/inspect_presentation_package_integrity.py'),layoutValidatorPath:path.join(skillDir,'container_tools/inspect_presentation_layout_geometry.py'),layoutArgs:['--expected-slide-size-emu','12192000,6858000','--validate-bullet-geometry','--validate-heading-fit'],fontPolicy:{basis:'reference',families:['Inter'],referencePath:'C:/Users/ScottHarvey-Whittle/OneDrive - SHW/Documents/Q/Training/CS/Q Customer Service Agent Induction with Facilitator Notes.pptx',referenceSha256:'4399b51c0b8f725ab8fdfa5ac0f598dc95b667fd4422fec7236b1c6f3e1d6870'},verifyArtifactToolImport:true,receiptPath:path.join(stagingDir,'validation.json')});
+console.log(JSON.stringify(res,null,2));
