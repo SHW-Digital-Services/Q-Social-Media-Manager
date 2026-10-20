@@ -3,6 +3,7 @@ import { BrandAsset, BrandColorSwatch, AssetVersion } from '../types';
 import { BRAND_ASSETS, BRAND_COLORS, Q_LOGO_URL } from '../data/brandData';
 import { QLogo } from './QLogo';
 import { MediaEditorModal } from './MediaEditorModal';
+import { getSupabaseClient } from '../lib/supabase';
 import { 
   Image as ImageIcon, 
   Copy, 
@@ -84,6 +85,8 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
   const [uploadUrl, setUploadUrl] = useState('');
   const [uploadTags, setUploadTags] = useState('brand, official');
   const [uploadDescription, setUploadDescription] = useState('Uploaded by Social Media Officer.');
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const [editingAsset, setEditingAsset] = useState<BrandAsset | null>(null);
 
   // Asset Version Control Modals state
@@ -206,6 +209,38 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
     setUploadTags(asset.tags.join(', '));
     setUploadDescription(asset.description);
     setShowUploadModal(true);
+  };
+
+  const handleFileUpload = async (file?: File) => {
+    setUploadError('');
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'].includes(file.type)) {
+      setUploadError('Choose a PNG, JPEG, WebP, or SVG image.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('Image files must be 10 MB or smaller.');
+      return;
+    }
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setUploadError('Image storage is not configured. Contact the site administrator.');
+      return;
+    }
+    setIsUploadingFile(true);
+    try {
+      const safeName = file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(-100) || 'asset';
+      const objectPath = `official-assets/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+      const { error } = await supabase.storage.from('images').upload(objectPath, file, { contentType: file.type, cacheControl: '3600', upsert: false });
+      if (error) throw error;
+      const { data } = supabase.storage.from('images').getPublicUrl(objectPath);
+      if (!data.publicUrl) throw new Error('Storage did not return a public image URL.');
+      setUploadUrl(data.publicUrl);
+    } catch (error) {
+      setUploadError((error as Error).message || 'The image upload failed.');
+    } finally {
+      setIsUploadingFile(false);
+    }
   };
 
   const handleDeleteAsset = (asset: BrandAsset) => {
@@ -768,13 +803,27 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
               </div>
 
               <div>
+                <label className="block font-semibold text-slate-700 mb-1">Upload image file</label>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  disabled={isUploadingFile}
+                  onChange={(e) => { void handleFileUpload(e.target.files?.[0]); e.currentTarget.value = ''; }}
+                  className="w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-purple-50 file:px-3 file:py-2 file:font-semibold file:text-purple-700 hover:file:bg-purple-100"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">PNG, JPEG, WebP, or SVG · up to 10 MB</p>
+                {isUploadingFile && <p role="status" className="text-purple-700 mt-1">Uploading to the shared image library…</p>}
+                {uploadError && <p role="alert" className="text-rose-600 mt-1">{uploadError}</p>}
+              </div>
+
+              <div>
                 <label className="block font-semibold text-slate-700 mb-1">Image URL</label>
                 <input
                   type="url"
                   required
                   placeholder="https://images.unsplash.com/..."
                   value={uploadUrl}
-                  onChange={(e) => setUploadUrl(e.target.value)}
+                  onChange={(e) => { setUploadUrl(e.target.value); setUploadError(''); }}
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
@@ -810,6 +859,7 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
                 </button>
                 <button
                   type="submit"
+                  disabled={isUploadingFile}
                   className="px-4 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-xl cursor-pointer shadow-xs"
                 >
                   {editingAsset ? 'Save Changes' : 'Add to Library'}
