@@ -632,7 +632,7 @@ export const MultiPlatformComposer: React.FC<MultiPlatformComposerProps> = ({
                 className="w-full text-xs px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-slate-800 font-mono"
               />
               <span className="text-[10px] text-slate-500 font-mono">
-                Times use your local time zone. A calendar slot is confirmed for automatic publishing after the saved post is approved and scheduled.
+                Times use your local time zone. After approval, selected channels publish automatically; website posts then appear in the CRM News &amp; Updates feed at this time.
               </span>
             </div>
 
